@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import compression from 'compression';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import generateRouter from './routes/generate.js';
 import requestRouter from './routes/request.js';
@@ -15,19 +15,15 @@ const app = express();
 const server = createServer(app);
 
 const PORT = process.env.PORT || 4000;
-// Support comma-separated origins in APP_URL for prod (e.g. "https://app.com,https://studio.expo.dev")
-const ORIGIN = (process.env.APP_URL || '*')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+const ORIGIN = process.env.APP_URL || '*';
 
-app.set('trust proxy', 1);
-app.use(helmet({
-  contentSecurityPolicy: false, // keep simple for API-only
-}));
-app.use(compression());
 app.use(cors({ origin: ORIGIN }));
 app.use(express.json({ limit: '2mb' }));
+
+// Serve locally written images (fallback when DB/Spaces unavailable)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

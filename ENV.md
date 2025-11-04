@@ -5,44 +5,78 @@ Add a `.env` file with these keys:
 PORT=4000
 NODE_ENV=development
 GEMINI_API_KEY=AIzaSyCoDgjz0QppIykREqBBkd4jsNowgYlInys
-SENDGRID_API_KEY=SG-...
+# GoDaddy SMTP (or other SMTP server)
+SMTP_HOST=smtpout.secureserver.net
+SMTP_PORT=587
+SMTP_USER=your-email@gurulink.app
+SMTP_PASSWORD=your-email-password
+SMTP_SECURE=false
+EMAIL_FROM=GuruLinkApp <soulmate@gurulink.app>
+
+# Alternative: use EMAIL_USER and EMAIL_PASSWORD instead
+# EMAIL_USER=your-email@gurulink.app
+# EMAIL_PASSWORD=your-email-password
+
 DATABASE_URL=postgres://user:password@localhost:5432/soulmate
-EMAIL_FROM=Soulmate App <no-reply@example.com>
 APP_URL=http://localhost:5173
 MOCK_MODE=false
 FALLBACK_IMAGE_URL_TEMPLATE=https://api.dicebear.com/7.x/{style}/png?seed={seed}&size=512&radius=40&backgroundType=gradientLinear
 
-## SendGrid Setup
+# DigitalOcean Spaces (for image storage)
+# Required to upload images to Spaces and store the public URL in DB
+SPACES_ACCESS_KEY_ID=DOXXXXXXXXXXXXXXX
+SPACES_SECRET_ACCESS_KEY=XXXXXXXXXXXXXXXXXXXXXXXX
+SPACES_BUCKET=soulmateimage
+SPACES_ENDPOINT=https://lon1.digitaloceanspaces.com
+# Optional: custom/public base URL (e.g., CDN or bucket website)
+SPACES_PUBLIC_URL=https://soulmateimage.lon1.digitaloceanspaces.com
 
-### 1. Get Your SendGrid API Key
-1. Sign up at https://sendgrid.com
-2. Go to **Settings → API Keys**
-3. Create an API key with **"Mail Send"** permissions
-4. Copy the key (starts with `SG.`)
+## Email Setup (GoDaddy SMTP)
 
-### 2. Verify Your Sender Identity (IMPORTANT!)
-**You MUST verify the email address in `EMAIL_FROM` before sending emails.**
+### 1. Get Your GoDaddy Email Credentials
+1. Log in to your GoDaddy account
+2. Go to **Email & Office** → **Email Accounts**
+3. Find your email account (e.g., `soulmate@gurulink.app`)
+4. Note the email address and password
 
-**Option A: Verify Single Sender (Easiest for Development)**
-1. Go to **Settings → Sender Authentication → Single Sender Verification**
-2. Click **Create New Sender**
-3. Fill in your details:
-   - **From Email**: Use the email address from `EMAIL_FROM` (e.g., `no-reply@yourdomain.com`)
-   - **From Name**: Use the name from `EMAIL_FROM` (e.g., `Soulmate App`)
-   - Fill in the required fields
-4. Check your email inbox and click the verification link
-5. Wait for verification status to show as "Verified" (may take a few minutes)
+### 2. Configure SMTP Settings
+Add these to your `.env` file:
 
-**Option B: Domain Authentication (Required for Production)**
-1. Go to **Settings → Sender Authentication → Domain Authentication**
-2. Follow the DNS setup instructions
-3. This allows you to send from any email address on your domain
+**For GoDaddy Email (older plans):**
+```
+SMTP_HOST=smtpout.secureserver.net
+SMTP_PORT=587
+SMTP_USER=soulmate@gurulink.app
+SMTP_PASSWORD=your-email-password
+SMTP_SECURE=false
+EMAIL_FROM=GuruLinkApp <soulmate@gurulink.app>
+```
 
-### 3. Configure EMAIL_FROM
-Set `EMAIL_FROM` in your `.env` file to match your verified sender:
-- Format: `Name <email@domain.com>` or just `email@domain.com`
-- Example: `Soulmate App <no-reply@yourdomain.com>`
+**For GoDaddy Microsoft 365 Email:**
+```
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=soulmate@gurulink.app
+SMTP_PASSWORD=your-email-password
+SMTP_SECURE=false
+EMAIL_FROM=GuruLinkApp <soulmate@gurulink.app>
+```
 
-**Common Error:** If you see "The from address does not match a verified Sender Identity", it means the email address in `EMAIL_FROM` hasn't been verified in SendGrid yet.
+### 3. Alternative Environment Variables
+You can also use `EMAIL_USER` and `EMAIL_PASSWORD` instead of `SMTP_USER` and `SMTP_PASSWORD`:
+```
+EMAIL_USER=soulmate@gurulink.app
+EMAIL_PASSWORD=your-email-password
+```
+
+### 4. Test Email Sending
+After restarting the backend, check logs for:
+- `[Email] SMTP server is ready to send messages` (success)
+- `[Email] SMTP connection failed: ...` (check credentials/host)
+
+**Common Issues:**
+- **Connection timeout**: Check if your server allows outbound connections on port 587/465
+- **Authentication failed**: Verify email and password are correct
+- **TLS errors**: Try setting `SMTP_SECURE=true` for port 465, or `SMTP_SECURE=false` for port 587
 
 

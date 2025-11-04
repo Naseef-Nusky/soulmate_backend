@@ -1,16 +1,46 @@
-import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 
-const apiKey = process.env.SENDGRID_API_KEY;
-if (apiKey && apiKey.startsWith('SG.')) {
-  sgMail.setApiKey(apiKey);
+// GoDaddy SMTP configuration
+const smtpHost = process.env.SMTP_HOST || 'smtpout.secureserver.net';
+const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+const smtpPassword = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD;
+const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
+
+let transporter = null;
+
+if (smtpUser && smtpPassword) {
+  transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure, // true for 465, false for other ports
+    auth: {
+      user: smtpUser,
+      pass: smtpPassword,
+    },
+    tls: {
+      rejectUnauthorized: false, // Some GoDaddy servers may need this
+    },
+  });
+
+  // Verify connection on startup
+  transporter.verify((error) => {
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[Email] SMTP connection failed:', error?.message || error);
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('[Email] SMTP server is ready to send messages');
+    }
+  });
 } else {
   // eslint-disable-next-line no-console
-  console.warn('[Email] SendGrid disabled: set a valid SENDGRID_API_KEY (starts with "SG.")');
+  console.warn('[Email] SMTP disabled: set SMTP_USER and SMTP_PASSWORD (or EMAIL_USER and EMAIL_PASSWORD)');
 }
 
 export async function sendResultsEmail({ to, report, imageUrl }) {
-  if (!apiKey || !apiKey.startsWith('SG.')) return;
-  const from = process.env.EMAIL_FROM || 'no-reply@example.com';
+  if (!transporter) return;
+  const from = process.env.EMAIL_FROM || smtpUser || 'no-reply@example.com';
   const html = `
     <div>
       <h2>Your Soulmate Personality Report</h2>
@@ -19,17 +49,22 @@ export async function sendResultsEmail({ to, report, imageUrl }) {
     </div>
   `;
   try {
-    await sgMail.send({ to, from, subject: 'Your Soulmate Results', html });
+    await transporter.sendMail({
+      from,
+      to,
+      subject: 'Your Soulmate Results',
+      html,
+    });
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error(`[Email] Results send failed from "${from}" to "${to}":`, error?.response?.body || error?.message || error);
+    console.error(`[Email] Results send failed from "${from}" to "${to}":`, error?.message || error);
     throw error;
   }
 }
 
 export async function sendTwinFlameEmail({ to, imageUrl }) {
-  if (!apiKey || !apiKey.startsWith('SG.')) return;
-  const from = process.env.EMAIL_FROM || 'no-reply@example.com';
+  if (!transporter) return;
+  const from = process.env.EMAIL_FROM || smtpUser || 'no-reply@example.com';
   const ctaUrl = imageUrl || process.env.APP_URL || 'http://localhost:5173';
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111">
@@ -67,18 +102,23 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
     </div>
   `;
   try {
-    await sgMail.send({ to, from, subject: 'Twin Flame Connection Discovered', html });
+    await transporter.sendMail({
+      from,
+      to,
+      subject: 'Twin Flame Connection Discovered',
+      html,
+    });
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error(`[Email] TwinFlame send failed from "${from}" to "${to}":`, error?.response?.body || error?.message || error);
+    console.error(`[Email] TwinFlame send failed from "${from}" to "${to}":`, error?.message || error);
     throw error;
   }
 }
 
 export async function sendArtistRequestEmail({ requestEmail, contact, notes, jobId, answers }) {
-  if (!apiKey || !apiKey.startsWith('SG.')) return;
-  const from = process.env.EMAIL_FROM || 'no-reply@example.com';
-  const to = process.env.ARTIST_TEAM_EMAIL || process.env.EMAIL_FROM || 'no-reply@example.com';
+  if (!transporter) return;
+  const from = process.env.EMAIL_FROM || smtpUser || 'no-reply@example.com';
+  const to = process.env.ARTIST_TEAM_EMAIL || process.env.EMAIL_FROM || smtpUser || 'no-reply@example.com';
   const html = `
     <div>
       <h2>New Artist Sketch Request</h2>
@@ -90,12 +130,15 @@ export async function sendArtistRequestEmail({ requestEmail, contact, notes, job
     </div>
   `;
   try {
-    await sgMail.send({ to, from, subject: 'New Soulmate Sketch Request', html });
+    await transporter.sendMail({
+      from,
+      to,
+      subject: 'New Soulmate Sketch Request',
+      html,
+    });
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error(`[Email] ArtistRequest send failed from "${from}" to "${to}":`, error?.response?.body || error?.message || error);
+    console.error(`[Email] ArtistRequest send failed from "${from}" to "${to}":`, error?.message || error);
     throw error;
   }
 }
-
-
