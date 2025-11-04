@@ -8,6 +8,7 @@ import generateRouter from './routes/generate.js';
 import requestRouter from './routes/request.js';
 import artistRouter from './routes/artist.js';
 import imagesRouter from './routes/images.js';
+import exportRouter from './routes/export.js';
 import { initDb } from './services/db.js';
 import { startQueue } from './services/queue.js';
 
@@ -33,6 +34,7 @@ app.use('/api/generate', generateRouter);
 app.use('/api/request', requestRouter);
 app.use('/api/artist', artistRouter);
 app.use('/api/images', imagesRouter);
+app.use('/api/export', exportRouter);
 
 server.listen(PORT, async () => {
   await initDb();

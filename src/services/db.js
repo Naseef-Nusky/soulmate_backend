@@ -21,6 +21,8 @@ export async function initDb() {
     `);
     // Add image_data column if it doesn't exist (for existing databases)
     await pool.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS image_data TEXT;`);
+    // Add step_data column to store all quiz step data as JSON
+    await pool.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS step_data JSONB;`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS jobs (
         id SERIAL PRIMARY KEY,
@@ -46,13 +48,13 @@ export async function initDb() {
   }
 }
 
-export async function saveResult({ report, imageUrl, imageData, astrology, answers, email }) {
+export async function saveResult({ report, imageUrl, imageData, astrology, answers, email, stepData }) {
   if (!pool) return null;
   const { rows } = await pool.query(
-    `INSERT INTO results (report, image_url, image_data, astrology, answers, email)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO results (report, image_url, image_data, astrology, answers, email, step_data)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id`,
-    [report, imageUrl ?? null, imageData ?? null, astrology ?? null, answers ?? null, email ?? null]
+    [report, imageUrl ?? null, imageData ?? null, astrology ?? null, answers ?? null, email ?? null, stepData ?? null]
   );
   return rows[0];
 }
@@ -114,10 +116,57 @@ export async function getJob(jobId) {
 export async function getResultById(resultId) {
   if (!pool) return null;
   const { rows } = await pool.query(
-    `SELECT id, created_at, report, image_url, astrology, answers, email FROM results WHERE id=$1`,
+    `SELECT id, created_at, report, image_url, astrology, answers, email, step_data FROM results WHERE id=$1`,
     [resultId]
   );
   return rows[0] || null;
+}
+
+export async function getAllResults() {
+  if (!pool) return null;
+  const { rows } = await pool.query(
+    `SELECT id, created_at, report, image_url, astrology, answers, email, step_data 
+     FROM results 
+     ORDER BY created_at DESC`
+  );
+  return rows || [];
+}
+
+export async function getResultsByEmail(email) {
+  if (!pool) return null;
+  const { rows } = await pool.query(
+    `SELECT id, created_at, report, image_url, astrology, answers, email, step_data 
+     FROM results 
+     WHERE email = $1 
+     ORDER BY created_at DESC`,
+    [email]
+  );
+  return rows || [];
+}
+
+export async function getResultsByDateRange(startDate, endDate) {
+  if (!pool) return null;
+  let query = `SELECT id, created_at, report, image_url, astrology, answers, email, step_data 
+               FROM results WHERE 1=1`;
+  const params = [];
+  let paramCount = 0;
+  
+  if (startDate) {
+    paramCount++;
+    query += ` AND created_at >= $${paramCount}`;
+    params.push(startDate);
+  }
+  
+  if (endDate) {
+    paramCount++;
+    query += ` AND created_at <= $${paramCount}`;
+    params.push(endDate);
+  }
+  
+  query += ` ORDER BY created_at DESC`;
+  
+  const { rows } = await pool.query(query, params);
+  return rows || [];
 }
 
 

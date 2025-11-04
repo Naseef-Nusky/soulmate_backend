@@ -19,6 +19,16 @@ router.post('/', async (req, res) => {
 
     const { answers, birthDetails, email } = value;
 
+    // Capture ALL step data from the request body as JSON (including any extra fields)
+    const stepData = {
+      ...req.body, // Include everything from the request
+      answers,
+      birthDetails,
+      email,
+      timestamp: new Date().toISOString(),
+      // This ensures all quiz step data is preserved
+    };
+
     const astrology = calculateAstrology(birthDetails);
 
     // Generate ONLY a hand‑drawn style pencil sketch using quiz answers
@@ -43,6 +53,7 @@ router.post('/', async (req, res) => {
       astrology,
       answers,
       email: email || null,
+      stepData, // Save all step data as JSON
     });
 
     // Determine a visible image URL
