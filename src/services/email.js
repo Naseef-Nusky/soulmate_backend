@@ -18,7 +18,13 @@ export async function sendResultsEmail({ to, report, imageUrl }) {
       ${imageUrl ? `<img src="${imageUrl}" alt="Soulmate portrait" style="max-width: 512px; border-radius: 8px;"/>` : ''}
     </div>
   `;
-  await sgMail.send({ to, from, subject: 'Your Soulmate Results', html });
+  try {
+    await sgMail.send({ to, from, subject: 'Your Soulmate Results', html });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`[Email] Results send failed from "${from}" to "${to}":`, error?.response?.body || error?.message || error);
+    throw error;
+  }
 }
 
 export async function sendTwinFlameEmail({ to, imageUrl }) {
@@ -41,9 +47,9 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
         <li>Twin flame markers are clearly visible</li>
       </ul>
       <blockquote style="margin: 16px 0; padding: 12px 16px; background: #f7f7f7; border-left: 3px solid #9146ff; border-radius: 4px;">
-        “I couldn't believe it when I received the email about synchronized sketches. A week later, I met Michael at a friend's
+        "I couldn't believe it when I received the email about synchronized sketches. A week later, I met Michael at a friend's
         gathering. We both had been searching for each other and had our sketches done in the same week! The matching symbols in our
-        drawings gave me chills.” — <strong>Sarah M.</strong>
+        drawings gave me chills." — <strong>Sarah M.</strong>
       </blockquote>
       <p style="margin: 16px 0;">
         <strong>⚠️ Important:</strong> When twin flame sketches align like this, it often indicates a critical meeting window approaching.
@@ -60,7 +66,13 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
       <p style="margin-top: 16px;">With anticipation,<br/>The Hint Team</p>
     </div>
   `;
-  await sgMail.send({ to, from, subject: 'Twin Flame Connection Discovered', html });
+  try {
+    await sgMail.send({ to, from, subject: 'Twin Flame Connection Discovered', html });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`[Email] TwinFlame send failed from "${from}" to "${to}":`, error?.response?.body || error?.message || error);
+    throw error;
+  }
 }
 
 export async function sendArtistRequestEmail({ requestEmail, contact, notes, jobId, answers }) {
@@ -77,7 +89,13 @@ export async function sendArtistRequestEmail({ requestEmail, contact, notes, job
       <pre style="white-space: pre-wrap; background: #f6f6f6; padding: 8px; border-radius: 6px;">${JSON.stringify(answers || {}, null, 2)}</pre>
     </div>
   `;
-  await sgMail.send({ to, from, subject: 'New Soulmate Sketch Request', html });
+  try {
+    await sgMail.send({ to, from, subject: 'New Soulmate Sketch Request', html });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`[Email] ArtistRequest send failed from "${from}" to "${to}":`, error?.response?.body || error?.message || error);
+    throw error;
+  }
 }
 
 

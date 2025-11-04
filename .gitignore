@@ -1,5 +1,28 @@
 # Dependencies
 node_modules/
+
+# Env
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Builds/coverage
+coverage/
+dist/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# App data
+uploads/
+# Dependencies
+node_modules/
 /.pnp
 .pnp.js
 
@@ -35,4 +58,5 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
 
