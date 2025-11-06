@@ -1,12 +1,47 @@
 import { Pool } from 'pg';
 
+const LOG_DB = process.env.LOG_DB === 'true';
+
 let pool;
 
 export async function initDb() {
   const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) return;
+  if (!connectionString) {
+    console.warn('[DB] DATABASE_URL not set. Continuing without DB.');
+    return;
+  }
+  
   try {
-    pool = new Pool({ connectionString, ssl: false });
+    // Check if SSL is required (DigitalOcean uses sslmode=require)
+    const useSsl = /sslmode=require/i.test(connectionString);
+    
+    // Extract host info for logging (without exposing password)
+    try {
+      const url = new URL(connectionString.replace(/^postgresql:/, 'http:'));
+      console.log(`[DB] Attempting connection to ${url.hostname}:${url.port || 5432} (SSL: ${useSsl ? 'on' : 'off'})`);
+    } catch {}
+    
+    // For DigitalOcean: use SSL with rejectUnauthorized: false to skip CA verification
+    // This handles self-signed certificates in the chain
+    // Note: Must set ssl object directly, not conditional false
+    const poolConfig = {
+      connectionString,
+    };
+    
+    if (useSsl) {
+      // DigitalOcean requires SSL but uses self-signed certs
+      // rejectUnauthorized: false tells Node.js to accept any certificate
+      poolConfig.ssl = {
+        rejectUnauthorized: false
+      };
+    }
+    
+    pool = new Pool(poolConfig);
+    
+    // Test connection immediately
+    const testClient = await pool.connect();
+    await testClient.query('SELECT NOW()');
+    testClient.release();
     await pool.query(`
       CREATE TABLE IF NOT EXISTS results (
         id SERIAL PRIMARY KEY,
@@ -39,11 +74,33 @@ export async function initDb() {
     `);
     // Ensure type column exists for older deployments
     await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'ai';`);
+    
+    // Note: payment/subscription tables removed from codebase
+    
     // eslint-disable-next-line no-console
     console.log('[DB] Connected and initialized.');
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.warn('[DB] Failed to connect or init. Continuing without DB. Set DATABASE_URL to enable.');
+    console.error('[DB] Connection failed!');
+    // eslint-disable-next-line no-console
+    console.error('[DB] Error code:', err?.code || 'UNKNOWN');
+    // eslint-disable-next-line no-console
+    console.error('[DB] Error message:', err?.message || String(err));
+    
+    // Common error explanations
+    if (err?.code === 'ETIMEDOUT' || err?.code === 'ECONNREFUSED') {
+      console.error('[DB] → Connection timeout/refused. Check:');
+      console.error('[DB]   1. Is your IP address in DigitalOcean "Trusted Sources"?');
+      console.error('[DB]   2. Is the hostname and port (25060) correct?');
+      console.error('[DB]   3. Is PostgreSQL running on the server?');
+    } else if (err?.code === 'ENOTFOUND') {
+      console.error('[DB] → Hostname not found. Check DATABASE_URL hostname is correct.');
+    } else if (err?.message?.includes('password') || err?.message?.includes('authentication')) {
+      console.error('[DB] → Authentication failed. Check username and password in DATABASE_URL.');
+    } else if (err?.message?.includes('SSL') || err?.message?.includes('TLS')) {
+      console.error('[DB] → SSL error. Ensure DATABASE_URL ends with ?sslmode=require');
+    }
+    
     pool = undefined;
   }
 }
@@ -169,4 +226,8 @@ export async function getResultsByDateRange(startDate, endDate) {
   return rows || [];
 }
 
+// Export pool for use in other modules
+export function getPool() {
+  return pool;
+}
 

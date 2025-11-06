@@ -31,6 +31,8 @@ SPACES_ENDPOINT=https://lon1.digitaloceanspaces.com
 # Optional: custom/public base URL (e.g., CDN or bucket website)
 SPACES_PUBLIC_URL=https://soulmateimage.lon1.digitaloceanspaces.com
 
+<!-- Stripe/subscription configuration removed -->
+
 ## Email Setup (GoDaddy SMTP)
 
 ### 1. Get Your GoDaddy Email Credentials
@@ -78,5 +80,12 @@ After restarting the backend, check logs for:
 - **Connection timeout**: Check if your server allows outbound connections on port 587/465
 - **Authentication failed**: Verify email and password are correct
 - **TLS errors**: Try setting `SMTP_SECURE=true` for port 465, or `SMTP_SECURE=false` for port 587
+
+### 5. Local Debug Options (do not enable in production)
+```
+ENABLE_DEBUG_ROUTES=true
+SMTP_DEBUG=true
+```
+With `ENABLE_DEBUG_ROUTES=true`, you can POST to `/api/debug/test-email` with optional body `{ "to": "you@example.com" }` to trigger a test email.
 
 

@@ -1,11 +1,13 @@
 import nodemailer from 'nodemailer';
 
-// GoDaddy SMTP configuration
+// SMTP configuration (GoDaddy/Office365 compatible)
 const smtpHost = process.env.SMTP_HOST || 'smtpout.secureserver.net';
 const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
 const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
 const smtpPassword = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD;
 const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
+const smtpDebug = false; // suppress nodemailer internal logs
+const EMAIL_LOGS = process.env.LOG_EMAIL === 'true';
 
 let transporter = null;
 
@@ -13,18 +15,24 @@ if (smtpUser && smtpPassword) {
   transporter = nodemailer.createTransport({
     host: smtpHost,
     port: smtpPort,
-    secure: smtpSecure, // true for 465, false for other ports
+    secure: smtpSecure, // 465 = SSL, 587 = STARTTLS via requireTLS
+    requireTLS: smtpPort === 587 && !smtpSecure,
     auth: {
       user: smtpUser,
       pass: smtpPassword,
     },
     tls: {
-      rejectUnauthorized: false, // Some GoDaddy servers may need this
+      // Some providers (GoDaddy) present non-standard chains on 587, allow
+      rejectUnauthorized: false,
     },
+    pool: false,
+    logger: smtpDebug,
+    debug: smtpDebug,
   });
 
-  // Verify connection on startup
+  // Verify connection on startup (non-blocking)
   transporter.verify((error) => {
+    if (!EMAIL_LOGS) return;
     if (error) {
       // eslint-disable-next-line no-console
       console.warn('[Email] SMTP connection failed:', error?.message || error);
@@ -34,12 +42,12 @@ if (smtpUser && smtpPassword) {
     }
   });
 } else {
-  // eslint-disable-next-line no-console
-  console.warn('[Email] SMTP disabled: set SMTP_USER and SMTP_PASSWORD (or EMAIL_USER and EMAIL_PASSWORD)');
+  // silence email disabled notice
 }
 
 export async function sendResultsEmail({ to, report, imageUrl }) {
   if (!transporter) return;
+  // Many providers require the From to match the authenticated user
   const from = process.env.EMAIL_FROM || smtpUser || 'no-reply@example.com';
   const html = `
     <div>
@@ -56,8 +64,10 @@ export async function sendResultsEmail({ to, report, imageUrl }) {
       html,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(`[Email] Results send failed from "${from}" to "${to}":`, error?.message || error);
+    if (EMAIL_LOGS) {
+      // eslint-disable-next-line no-console
+      console.error(`[Email] Results send failed from "${from}" to "${to}":`, error?.message || error);
+    }
     throw error;
   }
 }
@@ -109,8 +119,10 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
       html,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(`[Email] TwinFlame send failed from "${from}" to "${to}":`, error?.message || error);
+    if (EMAIL_LOGS) {
+      // eslint-disable-next-line no-console
+      console.error(`[Email] TwinFlame send failed from "${from}" to "${to}":`, error?.message || error);
+    }
     throw error;
   }
 }
@@ -137,8 +149,67 @@ export async function sendArtistRequestEmail({ requestEmail, contact, notes, job
       html,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(`[Email] ArtistRequest send failed from "${from}" to "${to}":`, error?.message || error);
+    if (EMAIL_LOGS) {
+      // eslint-disable-next-line no-console
+      console.error(`[Email] ArtistRequest send failed from "${from}" to "${to}":`, error?.message || error);
+    }
     throw error;
   }
+}
+
+export async function sendMonthlyHoroscopeEmail({ to, report, month, year, subscription }) {
+  if (!transporter) return;
+  const from = process.env.EMAIL_FROM || smtpUser || 'no-reply@example.com';
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthName = monthNames[month - 1];
+  
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111; max-width: 600px; margin: 0 auto;">
+      <h2 style="margin: 0 0 12px; font-size: 22px; color: #D4A34B;">Your Monthly Horoscope - ${monthName} ${year}</h2>
+      <p>Hello,</p>
+      <p>Your personalized monthly horoscope reading for ${monthName} ${year} is ready!</p>
+      <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D4A34B;">
+        <div style="white-space: pre-wrap; line-height: 1.8;">${report}</div>
+      </div>
+      <p style="margin-top: 20px;">We hope this guidance helps you navigate the month ahead with clarity and confidence.</p>
+      <p style="margin-top: 16px;">With cosmic wisdom,<br/>The GuruLink Team</p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+      <p style="font-size: 12px; color: #666;">
+        You're receiving this because you have an active subscription to GuruLink's monthly horoscope service.
+        ${subscription?.cancel_at_period_end ? 'Your subscription will end after this billing period.' : ''}
+      </p>
+    </div>
+  `;
+  
+  try {
+    await transporter.sendMail({
+      from,
+      to,
+      subject: `Your Monthly Horoscope - ${monthName} ${year}`,
+      html,
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] Monthly horoscope sent to ${to}`);
+    }
+  } catch (error) {
+    if (EMAIL_LOGS) {
+      console.error(`[Email] Monthly horoscope send failed to "${to}":`, error?.message || error);
+    }
+    throw error;
+  }
+}
+
+// Helper for debug route
+export async function verifySmtpAndSendTest(toAddress) {
+  if (!transporter) throw new Error('SMTP transporter not configured');
+  await transporter.verify();
+  const from = process.env.EMAIL_FROM || smtpUser;
+  const info = await transporter.sendMail({
+    from,
+    to: toAddress || smtpUser,
+    subject: 'GuruLink SMTP test',
+    text: 'This is a test email from GuruLink backend.',
+  });
+  return info?.messageId || 'sent';
 }

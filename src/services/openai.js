@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 const MOCK_MODE = String(process.env.MOCK_MODE || '').toLowerCase() === 'true' || !process.env.GEMINI_API_KEY;
+const LOG_AI_VERBOSE = process.env.LOG_AI_VERBOSE === 'true';
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 
@@ -78,47 +79,51 @@ ABSOLUTELY FORBIDDEN:
     risingSign ? `Rising sign: ${risingSign}.` : '',
   ].filter(Boolean).join('\n');
   
-  // Debug: Log what quiz data is being used
-  // eslint-disable-next-line no-console
-  console.log('[Image] Quiz steps included in prompt:');
-  // eslint-disable-next-line no-console
-  console.log('  Gender:', gender || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Ethnicity:', ethnicity || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Age Range:', ageRange || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Key Traits:', keyTraits || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Appearance:', appearanceImportance || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Decision Making:', decisionMaking || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Challenge:', challenge || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Red Flag:', redFlag || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Partner Preference:', partnerPreference || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Relationship Dynamic:', relationshipDynamic || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Love Language:', loveLanguage || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Ideal Connection:', idealConnection || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Relationship Fear:', relationshipFear || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Life Goals:', lifeGoals || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Element:', element || personalityElement || 'N/A');
-  // eslint-disable-next-line no-console
-  console.log('  Sun Sign:', sunSign || 'N/A');
+  if (LOG_AI_VERBOSE) {
+    // Debug: Log what quiz data is being used
+    // eslint-disable-next-line no-console
+    console.log('[Image] Quiz steps included in prompt:');
+    // eslint-disable-next-line no-console
+    console.log('  Gender:', gender || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Ethnicity:', ethnicity || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Age Range:', ageRange || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Key Traits:', keyTraits || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Appearance:', appearanceImportance || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Decision Making:', decisionMaking || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Challenge:', challenge || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Red Flag:', redFlag || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Partner Preference:', partnerPreference || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Relationship Dynamic:', relationshipDynamic || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Love Language:', loveLanguage || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Ideal Connection:', idealConnection || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Relationship Fear:', relationshipFear || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Life Goals:', lifeGoals || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Element:', element || personalityElement || 'N/A');
+    // eslint-disable-next-line no-console
+    console.log('  Sun Sign:', sunSign || 'N/A');
+  }
   
   const finalPrompt = `${styleDirectives}\n\n${hints}`.trim();
-  // eslint-disable-next-line no-console
-  console.log('[Image] Generated hints length:', hints.length, 'characters');
-  // eslint-disable-next-line no-console
-  console.log('[Image] Full prompt length:', finalPrompt.length, 'characters');
+  if (LOG_AI_VERBOSE) {
+    // eslint-disable-next-line no-console
+    console.log('[Image] Generated hints length:', hints.length, 'characters');
+    // eslint-disable-next-line no-console
+    console.log('[Image] Full prompt length:', finalPrompt.length, 'characters');
+  }
   
   return finalPrompt;
 }
@@ -129,8 +134,10 @@ export async function generatePencilSketchFromAnswers(answers, astrology) {
   // DALL-E 3 has a hard limit of 4000 characters - truncate if needed while preserving quiz hints
   const MAX_PROMPT_LENGTH = 3950; // 50 char buffer for safety
   if (prompt.length > MAX_PROMPT_LENGTH) {
-    // eslint-disable-next-line no-console
-    console.warn(`[Image] Prompt too long (${prompt.length} chars), truncating while preserving quiz steps...`);
+    if (LOG_AI_VERBOSE) {
+      // eslint-disable-next-line no-console
+      console.warn(`[Image] Prompt too long (${prompt.length} chars), truncating while preserving quiz steps...`);
+    }
     // Find where quiz hints start
     const hintsStartIndex = prompt.indexOf('Based on ALL quiz answers');
     if (hintsStartIndex > 0) {
@@ -140,13 +147,17 @@ export async function generatePencilSketchFromAnswers(answers, astrology) {
       const availableSpace = MAX_PROMPT_LENGTH - stylePart.length - 50;
       const truncatedHints = hintsPart.substring(0, Math.max(availableSpace, 800)); // Keep at least 800 chars for quiz data
       prompt = `${stylePart} ${truncatedHints}`.trim();
-      // eslint-disable-next-line no-console
-      console.warn(`[Image] Preserved ${truncatedHints.length}/${hintsPart.length} characters of quiz hints (${Math.round(truncatedHints.length/hintsPart.length*100)}%)`);
+      if (LOG_AI_VERBOSE) {
+        // eslint-disable-next-line no-console
+        console.warn(`[Image] Preserved ${truncatedHints.length}/${hintsPart.length} characters of quiz hints (${Math.round(truncatedHints.length/hintsPart.length*100)}%)`);
+      }
     } else {
       // Fallback: truncate from end but try to keep quiz-related content
       prompt = prompt.substring(0, MAX_PROMPT_LENGTH).trim();
-      // eslint-disable-next-line no-console
-      console.warn('[Image] Using fallback truncation (hints section not found)');
+      if (LOG_AI_VERBOSE) {
+        // eslint-disable-next-line no-console
+        console.warn('[Image] Using fallback truncation (hints section not found)');
+      }
     }
   }
   
@@ -156,32 +167,33 @@ export async function generatePencilSketchFromAnswers(answers, astrology) {
   }
   
   try {
-    // eslint-disable-next-line no-console
-    console.log('[Image] Generating pencil sketch with Gemini gemini-2.5-flash-image model');
-    // eslint-disable-next-line no-console
-    console.log('[Image] Full prompt being used:');
-    // eslint-disable-next-line no-console
-    console.log('='.repeat(80));
-    // eslint-disable-next-line no-console
-    console.log(prompt);
-    // eslint-disable-next-line no-console
-    console.log('='.repeat(80));
+    if (LOG_AI_VERBOSE) {
+      // eslint-disable-next-line no-console
+      console.log('[Image] Generating pencil sketch with Gemini gemini-2.5-flash-image model');
+      // eslint-disable-next-line no-console
+      console.log('[Image] Full prompt being used:');
+      // eslint-disable-next-line no-console
+      console.log('='.repeat(80));
+      // eslint-disable-next-line no-console
+      console.log(prompt);
+      // eslint-disable-next-line no-console
+      console.log('='.repeat(80));
+    }
     
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: prompt,
     });
-    // Log token usage if provided by the SDK (mainly for text models; may be undefined for image models)
-    // eslint-disable-next-line no-console
+    // Minimal AI usage logging
     if (response?.usageMetadata) {
-      console.log('[Usage] Prompt tokens:', response.usageMetadata.promptTokenCount || 0);
+      const pt = response.usageMetadata.promptTokenCount || 0;
+      const ct = response.usageMetadata.candidatesTokenCount || 0;
+      const tt = response.usageMetadata.totalTokenCount || 0;
       // eslint-disable-next-line no-console
-      console.log('[Usage] Completion tokens:', response.usageMetadata.candidatesTokenCount || 0);
-      // eslint-disable-next-line no-console
-      console.log('[Usage] Total tokens:', response.usageMetadata.totalTokenCount || 0);
+      console.log(`[AI] tokens prompt=${pt} completion=${ct} total=${tt}`);
     } else {
       // eslint-disable-next-line no-console
-      console.log('[Usage] usageMetadata not available for this response. Prompt length (chars):', prompt.length);
+      console.log(`[AI] promptLength=${prompt.length} chars`);
     }
     
     // Handle image response
@@ -189,8 +201,10 @@ export async function generatePencilSketchFromAnswers(answers, astrology) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData) {
           const imageData = part.inlineData.data; // Already base64
-          // eslint-disable-next-line no-console
-          console.log('[Image] Pencil sketch generated successfully');
+          if (LOG_AI_VERBOSE) {
+            // eslint-disable-next-line no-console
+            console.log('[Image] Pencil sketch generated successfully');
+          }
           // Return base64 data - URL will be generated after saving to DB
           return { imageData, url: null };
         }
@@ -198,22 +212,64 @@ export async function generatePencilSketchFromAnswers(answers, astrology) {
     }
     
     // Fallback if no image in response
-    // eslint-disable-next-line no-console
-    console.warn('[Image] No image data in response, using fallback');
+    if (LOG_AI_VERBOSE) {
+      // eslint-disable-next-line no-console
+      console.warn('[Image] No image data in response, using fallback');
+    }
     const fallbackUrl = buildFallbackUrl({ gender: answers?.genderConfirm || answers?.gender });
     return { url: fallbackUrl, imageData: null };
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('[Image] Pencil sketch generation failed:', {
-      status: err?.status,
-      code: err?.code,
-      message: err?.message,
-      promptLength: prompt.length,
-    });
+    console.error('[Image] Generation failed');
     const fallbackUrl = buildFallbackUrl({ report: prompt, gender: answers?.genderConfirm || answers?.gender });
     return { url: fallbackUrl, imageData: null };
   }
 }
 
+// Generate monthly horoscope report
+export async function generateHoroscopeReport(astrology, answers, month, year) {
+  if (MOCK_MODE) {
+    return `Monthly Horoscope for ${month}/${year}\n\nThis is a mock horoscope report. In production, this would be generated using AI based on your birth chart and current astrological transits.`;
+  }
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthName = monthNames[month - 1];
+  
+  const sunSign = astrology?.sunSign || 'Unknown';
+  const element = astrology?.element || 'Unknown';
+  const birthDate = astrology?.birthDate || 'Unknown';
+  
+  const prompt = `Generate a personalized monthly horoscope reading for ${monthName} ${year}.
+
+User Details:
+- Sun Sign: ${sunSign}
+- Element: ${element}
+- Birth Date: ${birthDate}
+- Key Traits: ${Array.isArray(answers?.keyTraits) ? answers.keyTraits.join(', ') : 'Not specified'}
+
+Create a detailed, personalized monthly horoscope that includes:
+1. Overall theme for the month
+2. Love and relationships forecast
+3. Career and financial opportunities
+4. Personal growth and spiritual insights
+5. Important dates and planetary influences
+6. Advice for navigating challenges
+
+Make it warm, insightful, and specific to their astrological profile. Write in a friendly, encouraging tone. Keep it between 800-1200 words.`;
+
+  try {
+    const model = ai.getGenerativeModel({ model: 'gemini-pro' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('[Horoscope] Generated monthly horoscope successfully');
+    return text;
+  } catch (err) {
+    console.error('[Horoscope] Generation failed:', err?.message || err);
+    return `Monthly Horoscope for ${monthName} ${year}\n\nUnfortunately, we encountered an error generating your personalized horoscope. Please try again later.`;
+  }
+}
 
 
