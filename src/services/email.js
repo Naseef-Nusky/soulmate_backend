@@ -357,19 +357,3 @@ export async function sendMonthlyHoroscopeEmail({ to, report, month, year, subsc
   }
 }
 
-// Helper for debug route
-export async function verifySmtpAndSendTest(toAddress) {
-  if (!sendGridApiKey) throw new Error('SendGrid API key not configured');
-  
-  try {
-    await sendEmail({
-      to: toAddress || EMAIL_FROM,
-      subject: 'GuruLink SendGrid test',
-      text: 'This is a test email from GuruLink backend using SendGrid.',
-      html: '<p>This is a test email from GuruLink backend using SendGrid.</p>',
-    });
-    return 'sent';
-  } catch (error) {
-    throw new Error(`SendGrid test failed: ${error?.message || error}`);
-  }
-}

@@ -909,12 +909,14 @@ export async function generateTomorrowHoroscope(userId) {
   }
 
   const formattedDate = tomorrow.toLocaleDateString('en-US');
-  const prompt = `Generate a personalized daily horoscope for (${formattedDate}) based on:
+  const prompt = `Generate a personalized daily horoscope for tomorrow (${formattedDate}) based on:
 
 Astrological Profile:
 - Sun Sign: ${natalChart.sunSign}
 - Element: ${natalChart.element}
 - Birth Date: ${natalChart.birthDate || 'Not specified'}${quizContext}
+
+IMPORTANT: Do NOT use the word "today" anywhere in the generated horoscope. Use "tomorrow", "on ${formattedDate}", or "on this date" instead.
 
 Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
 - PersonalLife
@@ -926,17 +928,17 @@ Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
 
 Guidelines for each section:
 
-PersonalLife: Describe relationships, family, love life, and emotional connections on ${formattedDate}. Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention a planetary transit influencing connections on that date.
+PersonalLife: Describe relationships, family, love life, and emotional connections for tomorrow (${formattedDate}). Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention a planetary transit influencing connections on that date. Do NOT mention "today".
 
-Profession: Cover work, career, business, and professional opportunities on ${formattedDate}. Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how the cosmic energy for that date impacts productivity or visibility.
+Profession: Cover work, career, business, and professional opportunities for tomorrow (${formattedDate}). Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how the cosmic energy for that date impacts productivity or visibility. Do NOT mention "today".
 
-Health: Discuss physical energy, exercise, diet, wellness, and mental clarity on ${formattedDate}. Offer practical tips about movement, meals, rest, and balance. Reference how the transits for that date affect vitality or self-care.
+Health: Discuss physical energy, exercise, diet, wellness, and mental clarity for tomorrow (${formattedDate}). Offer practical tips about movement, meals, rest, and balance. Reference how the transits for that date affect vitality or self-care. Do NOT mention "today".
 
-Emotions: Explore emotional state, inner feelings, mood, and self-awareness on ${formattedDate}. Include guidance about managing emotions, communicating needs, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional tendencies.
+Emotions: Explore emotional state, inner feelings, mood, and self-awareness for tomorrow (${formattedDate}). Include guidance about managing emotions, communicating needs, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional tendencies. Do NOT mention "today".
 
-Travel: Mention short trips, meetings, or movement on ${formattedDate}. Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays.
+Travel: Mention short trips, meetings, or movement for tomorrow (${formattedDate}). Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays. Do NOT mention "today".
 
-Luck: Highlight opportunities, synchronicities, and favorable moments on ${formattedDate}. End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives on this date." Make it uplifting and specific.
+Luck: Highlight opportunities, synchronicities, and favorable moments for tomorrow (${formattedDate}). End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives on this date." Make it uplifting and specific. Do NOT mention "today".
 
 Each section must be 4-6 sentences, warm, insightful, and encouraging. Total length around 400-500 words.`;
 

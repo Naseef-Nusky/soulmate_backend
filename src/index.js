@@ -14,7 +14,6 @@ import requestRouter from './routes/request.js';
 import artistRouter from './routes/artist.js';
 import imagesRouter from './routes/images.js';
 import exportRouter from './routes/export.js';
-import debugRouter from './routes/debug.js';
 import authRouter from './routes/auth.js';
 import astrologyRouter from './routes/astrology.js';
 import { initDb } from './services/db.js';
@@ -48,11 +47,6 @@ app.use('/api/export', exportRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/astrology', astrologyRouter);
 // Note: No subscription routes mounted
-
-// Enable debug routes only when explicitly allowed
-if (process.env.ENABLE_DEBUG_ROUTES === 'true') {
-  app.use('/api/debug', debugRouter);
-}
 
 server.listen(PORT, async () => {
   await initDb();
