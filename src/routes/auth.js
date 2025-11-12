@@ -1,7 +1,7 @@
 import express from 'express';
 import { createSignup, findSignupByEmail, generateToken, generateLoginToken, verifyLoginToken, updateProfile, getProfile, verifyToken } from '../services/auth.js';
 import { sendLoginLinkEmail } from '../services/email.js';
-import { generateDailyHoroscope } from '../services/astrology.js';
+import { generateDailyHoroscope, generateTomorrowHoroscope, generateMonthlyHoroscope, generateNatalChartReport } from '../services/astrology.js';
 
 const router = express.Router();
 
@@ -20,18 +20,15 @@ router.post('/register', async (req, res) => {
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
     const loginLink = `${appUrl}/login?token=${loginToken}`;
     
-    // Generate horoscope if birth date is provided
+    // Best‑effort pre-generation (non-blocking beyond daily)
     let horoscope = null;
-    if (signup.birth_date) {
-      try {
-        horoscope = await generateDailyHoroscope(signup.id);
-      } catch (horoscopeError) {
-        if (horoscopeError?.code !== 'QUIZ_INCOMPLETE' && horoscopeError?.message !== 'QUIZ_INCOMPLETE') {
-          console.error('[Auth] Failed to generate horoscope:', horoscopeError);
-        }
-        // Continue even if horoscope generation fails
-      }
-    }
+    try { horoscope = await generateDailyHoroscope(signup.id); } catch (e) {}
+    // Fire and forget others
+    (async () => {
+      try { await generateTomorrowHoroscope(signup.id); } catch (_e) {}
+      try { await generateMonthlyHoroscope(signup.id); } catch (_e) {}
+      try { await generateNatalChartReport(signup.id); } catch (_e) {}
+    })();
     
     // Send login link email
     try {
@@ -82,16 +79,14 @@ router.post('/login', async (req, res) => {
       
       const authToken = generateToken(signup.email);
       
-      // Generate horoscope for first login
+      // Best‑effort pre-generation
       let horoscope = null;
-      try {
-        horoscope = await generateDailyHoroscope(signup.id);
-      } catch (horoscopeError) {
-        if (horoscopeError?.code !== 'QUIZ_INCOMPLETE' && horoscopeError?.message !== 'QUIZ_INCOMPLETE') {
-          console.error('[Auth] Failed to generate horoscope:', horoscopeError);
-        }
-        // Continue even if horoscope generation fails
-      }
+      try { horoscope = await generateDailyHoroscope(signup.id); } catch (_e) {}
+      (async () => {
+        try { await generateTomorrowHoroscope(signup.id); } catch (_e) {}
+        try { await generateMonthlyHoroscope(signup.id); } catch (_e) {}
+        try { await generateNatalChartReport(signup.id); } catch (_e) {}
+      })();
       
       return res.json({ 
         ok: true, 
@@ -125,16 +120,14 @@ router.post('/login', async (req, res) => {
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
     const loginLink = `${appUrl}/login?token=${loginToken}`;
     
-    // Generate horoscope for user (will be available when they click login link)
+    // Best‑effort pre-generation for user
     let horoscope = null;
-    try {
-      horoscope = await generateDailyHoroscope(signup.id);
-    } catch (horoscopeError) {
-      if (horoscopeError?.code !== 'QUIZ_INCOMPLETE' && horoscopeError?.message !== 'QUIZ_INCOMPLETE') {
-        console.error('[Auth] Failed to generate horoscope:', horoscopeError);
-      }
-      // Continue even if horoscope generation fails
-    }
+    try { horoscope = await generateDailyHoroscope(signup.id); } catch (_e) {}
+    (async () => {
+      try { await generateTomorrowHoroscope(signup.id); } catch (_e) {}
+      try { await generateMonthlyHoroscope(signup.id); } catch (_e) {}
+      try { await generateNatalChartReport(signup.id); } catch (_e) {}
+    })();
     
     try {
       await sendLoginLinkEmail({ 

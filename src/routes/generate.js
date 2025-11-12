@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { calculateAstrology } from '../services/astrology.js';
+import { calculateAstrology, generateDailyHoroscope } from '../services/astrology.js';
 import { generatePencilSketchFromAnswers } from '../services/openai.js';
 import { saveResult } from '../services/db.js';
 import { sendTwinFlameEmail, sendLoginLinkEmail } from '../services/email.js';
@@ -105,6 +105,15 @@ router.post('/', async (req, res) => {
       }
     } else {
       imageUrl = image?.url || null;
+    }
+
+    // Fire-and-forget: also generate horoscope for this user (if we created/found signup)
+    if (userSignup?.id) {
+      generateDailyHoroscope(userSignup.id)
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn('[Generate] Horoscope pre-generation skipped:', err?.message || err);
+        });
     }
 
     if (email) {

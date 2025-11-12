@@ -344,10 +344,21 @@ export async function generateNatalChartReport(userId) {
   // Check if report already exists in database
   const cachedReport = await getHoroscope(userId, 'natal-chart', 'permanent');
   if (cachedReport) {
-    return {
-      report: cachedReport.guidance,
-      chart: null, // Chart data can be regenerated if needed
-    };
+    const text = String(cachedReport.guidance || '');
+    // Ensure the cached format matches the exact legacy structure
+    const hasCoreHeader =
+      text.includes('**Your core personality**') || text.includes('Your core personality');
+    const hasPillars = text.includes('There are three key pillars to your personality');
+    const hasSun = text.includes('**Sun**') && text.includes('Your identity');
+    const hasMoon = text.includes('**Moon**') && text.includes('Your emotions');
+    const hasRising = text.includes('**Rising-sign**') && text.includes('Your image');
+    if (hasCoreHeader && hasPillars && hasSun && hasMoon && hasRising) {
+      return {
+        report: cachedReport.guidance,
+        chart: null, // Chart data can be regenerated if needed
+      };
+    }
+    // If cached content doesn't match required format, regenerate below
   }
 
   // Generate new report
@@ -387,7 +398,7 @@ export async function generateNatalChartReport(userId) {
 - Pluto: ${detailedChart.Pluto}
 - Birth Date: ${detailedChart.birthDate}${quizContext}
 
-Format the report EXACTLY as follows with these sections:
+Format the report EXACTLY as follows with these sections. Do NOT add any content before the first header. Do NOT add any extra sections or closings. Keep the exact headers and subheaders as shown:
 
 **Your core personality**
 There are three key pillars to your personality
@@ -439,7 +450,7 @@ Your imagination
 Your power
 [Write 4-6 sentences about their Pluto sign, loyalty in friendships, intensity, charisma, transformation, leadership in groups, and dedication to ideals. Make it specific to ${detailedChart.Pluto} sign.]
 
-Write in a warm, insightful, and deeply personalized tone. Make it feel like it was written specifically for this person by a professional astrologer. Use the exact section headers as shown above. Total length: 1500-2000 words.`;
+Write in a warm, insightful, and deeply personalized tone. Make it feel like it was written specifically for this person by a professional astrologer. Use the exact section headers as shown above. Do NOT include any greetings or opening paragraphs before "**Your core personality**". Total length: 1500-2000 words.`;
 
   try {
     const result = await generateAIText(prompt, false);
