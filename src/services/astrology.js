@@ -10,12 +10,12 @@ async function generateAIText(prompt, returnJson = false) {
     if (returnJson) {
       return {
         text: {
-          PersonalLife: 'This is a mock AI-generated response.',
-          Profession: 'This is a mock AI-generated response.',
-          Health: 'This is a mock AI-generated response.',
-          Emotions: 'This is a mock AI-generated response.',
-          Travel: 'This is a mock AI-generated response.',
-          Luck: 'This is a mock AI-generated response.'
+        PersonalLife: 'This is a mock AI-generated response.',
+        Profession: 'This is a mock AI-generated response.',
+        Health: 'This is a mock AI-generated response.',
+        Emotions: 'This is a mock AI-generated response.',
+        Travel: 'This is a mock AI-generated response.',
+        Luck: 'This is a mock AI-generated response.'
         },
         tokens: { prompt: 0, response: 0, total: 0 }
       };
@@ -62,11 +62,11 @@ async function generateAIText(prompt, returnJson = false) {
         return {
           text: {
             PersonalLife: responseText || 'Unable to generate content.',
-            Profession: '',
-            Health: '',
-            Emotions: '',
-            Travel: '',
-            Luck: ''
+          Profession: '',
+          Health: '',
+          Emotions: '',
+          Travel: '',
+          Luck: ''
           },
           tokens
         };
@@ -747,12 +747,17 @@ export async function generateDailyHoroscope(userId) {
     }
   }
 
-  const prompt = `Generate a personalized daily horoscope for today (${today.toLocaleDateString('en-US')}) based on:
+  const prompt = `Generate personalized astrological guidance (timeless — do not reference days or dates) based on:
 
 Astrological Profile:
 - Sun Sign: ${natalChart.sunSign}
 - Element: ${natalChart.element}
 - Birth Date: ${natalChart.birthDate || 'Not specified'}${quizContext}
+
+IMPORTANT STYLE RULES:
+- Do NOT use or mention the words "today", "tomorrow", "yesterday", "tonight", "this morning", "this evening".
+- Do NOT include calendar dates or time periods (no "current day", "coming day", "period", "now", "at this time").
+- Write timeless guidance that reads as always-valid.
 
 Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
 - PersonalLife
@@ -762,19 +767,19 @@ Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
 - Travel
 - Luck
 
-Guidelines for each section:
+Guidelines for each section (follow the style rules above; no day/date/time words):
 
-PersonalLife: Describe relationships, family, love life, and emotional connections TODAY. Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention an astrological transit influencing their connections today.
+PersonalLife: Describe relationships, family, love life, and emotional connections. Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention an astrological transit influencing connections.
 
-Profession: Cover work, career, business, and professional opportunities TODAY. Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how today's planetary energy impacts productivity or visibility.
+Profession: Cover work, career, business, and professional opportunities. Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how planetary energy impacts productivity or visibility.
 
-Health: Discuss physical energy, exercise, diet, wellness, and mental clarity TODAY. Offer practical tips about movement, meals, rest, and balance. Reference how today's transits affect their vitality or self-care routine.
+Health: Discuss physical energy, exercise, diet, wellness, and mental clarity. Offer practical tips about movement, meals, rest, and balance. Reference how transits affect vitality or self-care routine.
 
-Emotions: Explore emotional state, inner feelings, mood, and self-awareness TODAY. Include guidance about managing emotions, practicing compassion, communicating feelings, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional patterns.
+Emotions: Explore emotional state, inner feelings, mood, and self-awareness. Include guidance about managing emotions, practicing compassion, communicating feelings, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional patterns.
 
-Travel: Mention short trips, meetings, or movement TODAY. Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays.
+Travel: Mention short trips, meetings, or movement. Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays.
 
-Luck: Highlight opportunities, synchronicities, and favorable moments TODAY. End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives today." Make it uplifting and specific.
+Luck: Highlight opportunities, synchronicities, and favorable moments. End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives." Make it uplifting and specific.
 
 Each section must be 4-6 sentences, warm, insightful, and encouraging. Total length around 400-500 words.`;
 
@@ -842,7 +847,7 @@ ${guidanceJson.Luck || ''}`;
     }
     console.error('[Astrology] Horoscope generation error:', error);
     const fallback = {
-      guidance: `Today brings new opportunities for your ${natalChart.sunSign} energy. Trust your intuition and stay open to the possibilities that come your way.`,
+      guidance: `Fresh opportunities align with your ${natalChart.sunSign} energy. Trust your intuition, act with clarity, and remain open to supportive synchronicities that match your intentions.`,
       emotionScore: 7,
       energyScore: 6,
       date: todayStr,
@@ -909,14 +914,17 @@ export async function generateTomorrowHoroscope(userId) {
   }
 
   const formattedDate = tomorrow.toLocaleDateString('en-US');
-  const prompt = `Generate a personalized daily horoscope for tomorrow (${formattedDate}) based on:
+  const prompt = `Generate personalized astrological guidance (timeless — do not reference days or dates) based on:
 
 Astrological Profile:
 - Sun Sign: ${natalChart.sunSign}
 - Element: ${natalChart.element}
 - Birth Date: ${natalChart.birthDate || 'Not specified'}${quizContext}
 
-IMPORTANT: Do NOT use the word "today" anywhere in the generated horoscope. Use "tomorrow", "on ${formattedDate}", or "on this date" instead.
+IMPORTANT STYLE RULES:
+- Do NOT use or mention the words "today", "tomorrow", "yesterday", "tonight", "this morning", "this evening".
+- Do NOT include calendar dates or time periods (no "coming day", "period", "now", "at this time").
+- Write timeless guidance that reads as always-valid.
 
 Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
 - PersonalLife
@@ -926,19 +934,19 @@ Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
 - Travel
 - Luck
 
-Guidelines for each section:
+Guidelines for each section (follow the style rules above; no day/date/time words):
 
-PersonalLife: Describe relationships, family, love life, and emotional connections for tomorrow (${formattedDate}). Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention a planetary transit influencing connections on that date. Do NOT mention "today".
+PersonalLife: Describe relationships, family, love life, and emotional connections. Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention a planetary transit influencing connections. Do NOT mention "today", "tomorrow", or dates.
 
-Profession: Cover work, career, business, and professional opportunities for tomorrow (${formattedDate}). Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how the cosmic energy for that date impacts productivity or visibility. Do NOT mention "today".
+Profession: Cover work, career, business, and professional opportunities. Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how planetary energy impacts productivity or visibility. Do NOT mention "today", "tomorrow", or dates.
 
-Health: Discuss physical energy, exercise, diet, wellness, and mental clarity for tomorrow (${formattedDate}). Offer practical tips about movement, meals, rest, and balance. Reference how the transits for that date affect vitality or self-care. Do NOT mention "today".
+Health: Discuss physical energy, exercise, diet, wellness, and mental clarity. Offer practical tips about movement, meals, rest, and balance. Reference how transits affect vitality or self-care. Do NOT mention "today", "tomorrow", or dates.
 
-Emotions: Explore emotional state, inner feelings, mood, and self-awareness for tomorrow (${formattedDate}). Include guidance about managing emotions, communicating needs, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional tendencies. Do NOT mention "today".
+Emotions: Explore emotional state, inner feelings, mood, and self-awareness. Include guidance about managing emotions, communicating needs, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional tendencies. Do NOT mention "today", "tomorrow", or dates.
 
-Travel: Mention short trips, meetings, or movement for tomorrow (${formattedDate}). Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays. Do NOT mention "today".
+Travel: Mention short trips, meetings, or movement. Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays. Do NOT mention "today", "tomorrow", or dates.
 
-Luck: Highlight opportunities, synchronicities, and favorable moments for tomorrow (${formattedDate}). End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives on this date." Make it uplifting and specific. Do NOT mention "today".
+Luck: Highlight opportunities, synchronicities, and favorable moments. End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives." Make it uplifting and specific. Do NOT mention "today", "tomorrow", or dates.
 
 Each section must be 4-6 sentences, warm, insightful, and encouraging. Total length around 400-500 words.`;
 
@@ -1004,7 +1012,7 @@ ${guidanceJson.Luck || ''}`;
     }
     console.error('[Astrology] Tomorrow horoscope generation error:', error);
     const fallback = {
-      guidance: `Tomorrow holds promise for your ${natalChart.sunSign} energy. Prepare yourself for new opportunities and trust in your natural ${natalChart.element.toLowerCase()} intuition.`,
+      guidance: `Promising currents support your ${natalChart.sunSign} energy. Prepare with intention, move with balance, and trust your natural ${natalChart.element.toLowerCase()} intuition to guide choices and connections.`,
       emotionScore: 7,
       energyScore: 6,
       date: tomorrowStr,
