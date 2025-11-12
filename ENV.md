@@ -21,6 +21,9 @@ EMAIL_FROM=GuruLinkApp <soulmate@gurulink.app>
 # Optional: Artist team email for notifications
 ARTIST_TEAM_EMAIL=artists@gurulink.app
 
+# Google Cloud Translation (server-side; never expose in frontend)
+GOOGLE_TRANSLATE_API_KEY=your-google-cloud-translation-api-key
+
 DATABASE_URL=postgres://user:password@localhost:5432/soulmate
 APP_URL=http://localhost:5173
 MOCK_MODE=false

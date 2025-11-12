@@ -16,6 +16,7 @@ import imagesRouter from './routes/images.js';
 import exportRouter from './routes/export.js';
 import authRouter from './routes/auth.js';
 import astrologyRouter from './routes/astrology.js';
+import translateRouter from './routes/translate.js';
 import { initDb } from './services/db.js';
 import { startQueue } from './services/queue.js';
 
@@ -46,6 +47,7 @@ app.use('/api/images', imagesRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/astrology', astrologyRouter);
+app.use('/api/translate', translateRouter);
 // Note: No subscription routes mounted
 
 server.listen(PORT, async () => {
