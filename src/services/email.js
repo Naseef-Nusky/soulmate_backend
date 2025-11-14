@@ -117,65 +117,75 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
   
   const html = `
     <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
-        <tr>
-          <td align="center" style="padding: 40px 20px;">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; max-width: 600px;">
-              <tr>
-                <td style="padding: 40px 30px;">
-                  <h2 style="margin: 0 0 12px 0; font-size: 22px; color: #111;">Twin Flame Connection Discovered</h2>
-                  <p style="margin: 0 0 16px 0; font-size: 16px; color: #111; line-height: 1.6;">Hi there,</p>
-                  <p style="margin: 0 0 16px 0; font-size: 16px; color: #111; line-height: 1.6;">
-                    Something unprecedented just happened that I had to share immediately - another psychic artist completed a sketch showing
-                    someone actively searching for a person matching YOUR energy signature. These synchronized sketches are incredibly rare and
-                    often indicate an imminent twin flame connection.
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twin Flame Alert — GuruLink</title>
+  </head>
+  <body style="margin:0; padding:0; font-family:Arial, sans-serif; background-color:#f5f5f5;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+      <tr>
+        <td align="center" style="padding:40px 20px;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; max-width:600px;">
+            <tr>
+              <td style="padding:40px 30px;">
+
+                <h2 style="margin:0 0 12px 0; font-size:22px; color:#111;">A Powerful Twin Flame Signal Detected</h2>
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">Hello,</p>
+
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  We’ve encountered something remarkable — another intuitive artist has completed a sketch that aligns directly with the energetic
+                  profile we identified for you. These dual‑sketch alignments are extremely uncommon and often point to a twin flame connection drawing closer.
+                </p>
+
+                <ul style="margin:0 0 16px 0; padding-left:20px; color:#111;">
+                  <li style="margin:8px 0;">Both sketches contain uniquely matching symbols</li>
+                  <li style="margin:8px 0;">The energy patterns reflect each other perfectly</li>
+                  <li style="margin:8px 0;">Indicators suggest a significant encounter approaching</li>
+                  <li style="margin:8px 0;">Clear twin flame markers are present in both readings</li>
+                </ul>
+
+                <blockquote style="margin:16px 0; padding:12px 16px; background:#f7f7f7; border-left:3px solid #9146ff; border-radius:4px;">
+                  <p style="margin:0; font-style:italic; color:#111; line-height:1.6;">
+                    "I was stunned when I heard about synchronized sketches. A week later, I met Michael at a gathering — we had both gotten our
+                    soulmate drawings the same week. The matching symbols were unbelievable." — <strong>Sarah M.</strong>
                   </p>
-                  <ul style="margin: 0 0 16px 0; padding-left: 20px; color: #111;">
-                    <li style="margin: 8px 0;">Both sketches share mysterious matching symbols</li>
-                    <li style="margin: 8px 0;">The energy signatures are perfectly mirrored</li>
-                    <li style="margin: 8px 0;">Timeline indicators suggest paths crossing soon</li>
-                    <li style="margin: 8px 0;">Twin flame markers are clearly visible</li>
-                  </ul>
-                  <blockquote style="margin: 16px 0; padding: 12px 16px; background: #f7f7f7; border-left: 3px solid #9146ff; border-radius: 4px;">
-                    <p style="margin: 0; font-style: italic; color: #111; line-height: 1.6;">
-                      "I couldn't believe it when I received the email about synchronized sketches. A week later, I met Michael at a friend's
-                      gathering. We both had been searching for each other and had our sketches done in the same week! The matching symbols in our
-                      drawings gave me chills." — <strong>Sarah M.</strong>
-                    </p>
-                  </blockquote>
-                  <p style="margin: 16px 0; font-size: 16px; color: #111; line-height: 1.6;">
-                    <strong>⚠️ Important:</strong> When twin flame sketches align like this, it often indicates a critical meeting window approaching.
-                    The energy connection is strongest when both parties acknowledge it.
-                  </p>
-                  
-                  <!-- Button -->
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                    <tr>
-                      <td align="center" style="padding: 20px 0;">
-                        <a href="${escapedCtaUrl}" target="_blank" style="display: inline-block; background-color: #6d28d9; color: #fff; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                          <span style="color: #fff; text-decoration: none;">See Your Soulmate Sketch Now</span>
-                        </a>
-                      </td>
-                    </tr>
-                  </table>
-                  
-                  ${imageUrl ? `<img src="${escapedImageUrl}" alt="Soulmate portrait" style="max-width: 100%; border-radius: 10px; display: block; margin: 20px 0;" />` : ''}
-                  <p style="margin: 20px 0 16px 0; font-size: 16px; color: #111; line-height: 1.6;">The universe rarely aligns energies this perfectly. Your destined connection is searching for you at this very moment.</p>
-                  <p style="margin: 0; font-size: 16px; color: #111;">With anticipation,<br/>The Hint Team</p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
+                </blockquote>
+
+                <p style="margin:16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  <strong>⚠️ Important:</strong> When twin flame sketches line up like this, it often marks a powerful energetic window. The connection becomes
+                  strongest when both individuals acknowledge it.
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" style="padding:20px 0;">
+                      <a href="${escapedCtaUrl}" target="_blank" style="display:inline-block; background-color:#6d28d9; color:#fff; padding:12px 18px; border-radius:8px; font-weight:600; font-size:16px; text-decoration:none;">
+                        View Your Soulmate Sketch
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                ${imageUrl ? `<img src="${escapedImageUrl}" alt="Soulmate portrait" style="max-width:100%; border-radius:10px; display:block; margin:20px 0;" />` : ''}
+
+                <p style="margin:20px 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  These alignments are rare — the person connected to your energy may be seeking you at this very moment.
+                </p>
+
+                <p style="margin:0; font-size:16px; color:#111; line-height:1.6;">
+                  With insight and guidance,<br/>The GuruLink Team
+                </p>
+
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
   `;
   
   await sendEmail({
@@ -291,7 +301,6 @@ Thanks,
 The GuruLink Team
 
 © 2025 GuruLink, All rights reserved.
-2093 Philadelphia Pike #3129, Claymont, DE 19703, USA
 
 You are receiving this email because you signed up for an account with GuruLink.
 If you did not request this login link, please ignore this email.`;
