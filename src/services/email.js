@@ -268,7 +268,6 @@ export async function sendLoginLinkEmail({ to, loginLink, name }) {
                   
                   <p style="margin: 0 0 12px 0; font-size: 12px; color: #999; line-height: 1.5;">
                     © 2025 GuruLink, All rights reserved.<br/>
-                    2093 Philadelphia Pike #3129, Claymont, DE 19703, USA
                   </p>
                   <p style="margin: 0 0 8px 0; font-size: 12px; color: #999; line-height: 1.5;">
                     You are receiving this email because you signed up for an account with GuruLink.
