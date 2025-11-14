@@ -4,10 +4,10 @@ import path from 'path';
 import { calculateAstrology, generateDailyHoroscope } from '../services/astrology.js';
 import { generatePencilSketchFromAnswers } from '../services/openai.js';
 import { saveResult } from '../services/db.js';
-import { sendTwinFlameEmail, sendLoginLinkEmail } from '../services/email.js';
+import { sendTwinFlameEmail } from '../services/email.js';
 import { uploadPngToSpaces } from '../services/storage.js';
 import { validateGeneratePayload } from '../utils/validators.js';
-import { createSignup, generateLoginToken } from '../services/auth.js';
+import { createSignup } from '../services/auth.js';
 
 const router = Router();
 
@@ -116,28 +116,21 @@ router.post('/', async (req, res) => {
         });
     }
 
+    // Send Twin Flame email AFTER generation completes (if email provided)
     if (email) {
-      sendTwinFlameEmail({ to: email, imageUrl: imageUrl || '' })
-        .catch((err) => {
-          // eslint-disable-next-line no-console
-          console.error('[Email] TwinFlame send failed:', err?.response?.body || err?.message || err);
-        });
-      
-      // Send magic link AFTER soulmate sketch is generated
+      console.log(`[Generate] Attempting to send Twin Flame email to: ${email}, imageUrl: ${imageUrl ? 'provided' : 'not provided'}`);
       try {
-        const loginToken = generateLoginToken(email);
-        const appUrl = process.env.APP_URL || 'http://localhost:5173';
-        const loginLink = `${appUrl}/login?token=${loginToken}&redirect=dashboard&tab=insight&showSoulmate=true`;
-        
-        await sendLoginLinkEmail({
-          to: email,
-          loginLink,
-          name: answers.name || null,
+        await sendTwinFlameEmail({ to: email, imageUrl: imageUrl || '' });
+        console.log(`[Generate] ✅ Twin Flame email sent successfully to ${email}`);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[Generate] ❌ TwinFlame email send failed:', {
+          email,
+          error: err?.message || err,
+          response: err?.response?.body || null,
+          statusCode: err?.response?.statusCode || null,
         });
-        console.log('[Generate] Magic link sent after soulmate sketch generation');
-      } catch (emailError) {
-        console.error('[Generate] Failed to send magic link:', emailError);
-        // Continue even if email fails
+        // Continue even if email fails - don't block the response
       }
     }
 
@@ -155,6 +148,7 @@ router.post('/', async (req, res) => {
 });
 
 export default router;
+
 
 
 

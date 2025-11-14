@@ -109,7 +109,29 @@ export async function sendResultsEmail({ to, report, imageUrl }) {
 }
 
 export async function sendTwinFlameEmail({ to, imageUrl }) {
-  if (!sendGridApiKey) return;
+  if (!sendGridApiKey) {
+    const error = new Error('SendGrid API key not configured. Set SENDGRID_API_KEY in .env');
+    console.error('[Email] Twin Flame email cannot be sent:', error.message);
+    throw error;
+  }
+  
+  // Validate and normalize email
+  if (!to) {
+    const error = new Error('Email address is required for Twin Flame email');
+    console.error('[Email] Twin Flame email cannot be sent:', error.message);
+    throw error;
+  }
+  
+  const normalizedEmail = String(to).trim().toLowerCase();
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    const error = new Error(`Invalid email address: ${to}`);
+    console.error('[Email] Twin Flame email cannot be sent:', error.message);
+    throw error;
+  }
+  
+  if (EMAIL_LOGS) {
+    console.log(`[Email] Preparing to send Twin Flame email to: ${normalizedEmail}`);
+  }
   
   const ctaUrl = imageUrl || process.env.APP_URL || 'http://localhost:5173';
   const escapedCtaUrl = ctaUrl.replace(/"/g, '&quot;');
@@ -188,11 +210,20 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
 </html>
   `;
   
-  await sendEmail({
-    to,
-    subject: 'Twin Flame Connection Discovered',
-    html,
-  });
+  try {
+    await sendEmail({
+      to: normalizedEmail,
+      subject: 'Twin Flame Connection Discovered',
+      html,
+      categories: ['twin-flame', 'soulmate'],
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] ✅ Twin Flame email sent successfully to ${normalizedEmail}`);
+    }
+  } catch (error) {
+    console.error(`[Email] ❌ Twin Flame email failed to send to ${normalizedEmail}:`, error?.message || error);
+    throw error;
+  }
 }
 
 export async function sendArtistRequestEmail({ requestEmail, contact, notes, jobId, answers }) {

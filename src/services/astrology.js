@@ -455,6 +455,10 @@ Write in a warm, insightful, and deeply personalized tone. Make it feel like it 
   try {
     const result = await generateAIText(prompt, false);
     const report = result.text || result;
+    const tokens = result.tokens || { prompt: 0, response: 0, total: 0 };
+    
+    // Log token usage for Core Personality (Natal Chart Report)
+    console.log(`[Astrology] Core Personality (Natal Chart) Token Usage - Prompt: ${tokens.prompt}, Response: ${tokens.response}, Total: ${tokens.total}`);
     
     // Save to database for caching
     await saveHoroscope({
@@ -758,6 +762,7 @@ export async function generateDailyHoroscope(userId) {
     }
   }
 
+  const formattedDate = today.toLocaleDateString('en-US');
   const prompt = `Generate personalized astrological guidance (timeless — do not reference days or dates) based on:
 
 Astrological Profile:
@@ -767,7 +772,7 @@ Astrological Profile:
 
 IMPORTANT STYLE RULES:
 - Do NOT use or mention the words "today", "tomorrow", "yesterday", "tonight", "this morning", "this evening".
-- Do NOT include calendar dates or time periods (no "current day", "coming day", "period", "now", "at this time").
+- Do NOT include calendar dates or time periods (no "coming day", "period", "now", "at this time").
 - Write timeless guidance that reads as always-valid.
 
 Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
@@ -780,17 +785,17 @@ Return ONLY valid JSON (no markdown, no code fences) with exactly these keys:
 
 Guidelines for each section (follow the style rules above; no day/date/time words):
 
-PersonalLife: Describe relationships, family, love life, and emotional connections. Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention an astrological transit influencing connections.
+PersonalLife: Describe relationships, family, love life, and emotional connections. Reference their ${natalChart.sunSign} traits and include guidance for couples, singles, and meaningful conversations. Mention a planetary transit influencing connections. Do NOT mention "today", "tomorrow", or dates.
 
-Profession: Cover work, career, business, and professional opportunities. Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how planetary energy impacts productivity or visibility.
+Profession: Cover work, career, business, and professional opportunities. Provide advice about teamwork, decision-making, recognition, and staying grounded. Make it specific to their ${natalChart.sunSign} strengths and note how planetary energy impacts productivity or visibility. Do NOT mention "today", "tomorrow", or dates.
 
-Health: Discuss physical energy, exercise, diet, wellness, and mental clarity. Offer practical tips about movement, meals, rest, and balance. Reference how transits affect vitality or self-care routine.
+Health: Discuss physical energy, exercise, diet, wellness, and mental clarity. Offer practical tips about movement, meals, rest, and balance. Reference how transits affect vitality or self-care. Do NOT mention "today", "tomorrow", or dates.
 
-Emotions: Explore emotional state, inner feelings, mood, and self-awareness. Include guidance about managing emotions, practicing compassion, communicating feelings, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional patterns.
+Emotions: Explore emotional state, inner feelings, mood, and self-awareness. Include guidance about managing emotions, communicating needs, and staying centered. Tie it to their ${natalChart.sunSign}'s emotional tendencies. Do NOT mention "today", "tomorrow", or dates.
 
-Travel: Mention short trips, meetings, or movement. Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays.
+Travel: Mention short trips, meetings, or movement. Reference relevant astrological aspects (e.g., "Moon trine Mercury") and advise on timing, logistics, flexibility, or potential delays. Do NOT mention "today", "tomorrow", or dates.
 
-Luck: Highlight opportunities, synchronicities, and favorable moments. End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives." Make it uplifting and specific.
+Luck: Highlight opportunities, synchronicities, and favorable moments. End with a sentence like "Luck favors [something] for ${natalChart.sunSign} natives." Make it uplifting and specific. Do NOT mention "today", "tomorrow", or dates.
 
 Each section must be 4-6 sentences, warm, insightful, and encouraging. Total length around 400-500 words.`;
 
