@@ -29,6 +29,9 @@ APP_URL=http://localhost:5173
 MOCK_MODE=false
 FALLBACK_IMAGE_URL_TEMPLATE=https://api.dicebear.com/7.x/{style}/png?seed={seed}&size=512&radius=40&backgroundType=gradientLinear
 
+# Stripe Payments (required for gated signup)
+STRIPE_SECRET_KEY=sk_live_...
+
 # DigitalOcean Spaces (for image storage)
 # Required to upload images to Spaces and store the public URL in DB
 SPACES_ACCESS_KEY_ID=DOXXXXXXXXXXXXXXX

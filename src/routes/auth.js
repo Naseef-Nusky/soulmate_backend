@@ -2,17 +2,43 @@ import express from 'express';
 import { createSignup, findSignupByEmail, generateToken, generateLoginToken, verifyLoginToken, updateProfile, getProfile, verifyToken } from '../services/auth.js';
 import { sendLoginLinkEmail } from '../services/email.js';
 import { generateDailyHoroscope, generateTomorrowHoroscope, generateMonthlyHoroscope, generateNatalChartReport } from '../services/astrology.js';
+import { retrievePaymentIntent, markSignupCreated } from '../services/stripe.js';
 
 const router = express.Router();
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, name, birthDate } = req.body;
+    const { email, name, birthDate, paymentIntentId } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
+    if (!paymentIntentId) {
+      return res.status(402).json({ error: 'Payment is required before creating an account.' });
+    }
 
-    const signup = await createSignup({ email, name, birthDate });
+    const cleanedEmail = email.trim().toLowerCase();
+    let paymentIntent;
+    try {
+      paymentIntent = await retrievePaymentIntent(paymentIntentId);
+    } catch (error) {
+      console.error('[Auth] Unable to retrieve payment intent:', error);
+      return res.status(402).json({ error: 'Unable to verify payment. Please try again.' });
+    }
+
+    if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+      return res.status(402).json({ error: 'Payment has not completed yet.' });
+    }
+
+    const paymentEmail = paymentIntent.metadata?.email;
+    if (paymentEmail && paymentEmail !== cleanedEmail) {
+      return res.status(400).json({ error: 'Payment email does not match registration email.' });
+    }
+
+    if (paymentIntent.metadata?.signupCreated === 'true') {
+      return res.status(400).json({ error: 'An account has already been created for this payment.' });
+    }
+
+    const signup = await createSignup({ email: cleanedEmail, name, birthDate });
     const token = generateToken(signup.email);
     const loginToken = generateLoginToken(signup.email);
     
@@ -55,6 +81,8 @@ router.post('/register', async (req, res) => {
         birthDate: signup.birth_date,
       }
     });
+
+    markSignupCreated(paymentIntentId).catch(() => {});
   } catch (error) {
     console.error('[Auth] Registration error:', error);
     res.status(400).json({ error: error.message || 'Registration failed' });
