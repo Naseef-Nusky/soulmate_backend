@@ -115,7 +115,6 @@ export async function initDb() {
       );
     `);
     
-    // Note: payment/subscription tables removed from codebase
     
     // eslint-disable-next-line no-console
     console.log('[DB] Connected and initialized.');
@@ -154,6 +153,53 @@ export async function saveResult({ report, imageUrl, imageData, astrology, answe
     [report, imageUrl ?? null, imageData ?? null, astrology ?? null, answers ?? null, email ?? null, stepData ?? null]
   );
   return rows[0];
+}
+
+export async function updateResult(resultId, { report, imageUrl, imageData, astrology, answers, email, stepData }) {
+  if (!pool) return null;
+  if (!resultId) return null;
+  
+  const updates = [];
+  const values = [];
+  let paramCount = 1;
+  
+  if (report !== undefined) {
+    updates.push(`report = $${paramCount++}`);
+    values.push(report);
+  }
+  if (imageUrl !== undefined) {
+    updates.push(`image_url = $${paramCount++}`);
+    values.push(imageUrl);
+  }
+  if (imageData !== undefined) {
+    updates.push(`image_data = $${paramCount++}`);
+    values.push(imageData);
+  }
+  if (astrology !== undefined) {
+    updates.push(`astrology = $${paramCount++}`);
+    values.push(astrology);
+  }
+  if (answers !== undefined) {
+    updates.push(`answers = $${paramCount++}`);
+    values.push(answers);
+  }
+  if (email !== undefined) {
+    updates.push(`email = $${paramCount++}`);
+    values.push(email);
+  }
+  if (stepData !== undefined) {
+    updates.push(`step_data = $${paramCount++}`);
+    values.push(stepData);
+  }
+  
+  if (updates.length === 0) return null;
+  
+  values.push(resultId);
+  const { rows } = await pool.query(
+    `UPDATE results SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, created_at`,
+    values
+  );
+  return rows[0] || null;
 }
 
 export async function getImageDataById(resultId) {
@@ -239,6 +285,59 @@ export async function getResultsByEmail(email) {
     [email]
   );
   return rows || [];
+}
+
+export async function getLatestResultByEmail(email) {
+  if (!pool) return null;
+  if (!email) return null;
+  const cleanedEmail = email.trim().toLowerCase();
+  
+  // First try exact email match
+  let { rows } = await pool.query(
+    `SELECT id, created_at, report, image_url, astrology, answers, email, step_data 
+     FROM results 
+     WHERE LOWER(TRIM(email)) = $1 
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [cleanedEmail]
+  );
+  
+  // If no exact match, try searching in step_data JSON for email
+  if (rows.length === 0) {
+    const { rows: jsonRows } = await pool.query(
+      `SELECT id, created_at, report, image_url, astrology, answers, email, step_data 
+       FROM results 
+       WHERE step_data::text ILIKE $1 
+       ORDER BY created_at DESC 
+       LIMIT 1`,
+      [`%${cleanedEmail}%`]
+    );
+    rows = jsonRows;
+  }
+  
+  if (rows.length > 0) {
+    console.log(`[DB] Found quiz result for ${cleanedEmail}: result ID ${rows[0].id}, saved email: ${rows[0].email || 'null'}`);
+  } else {
+    console.warn(`[DB] No quiz result found for ${cleanedEmail}. Checking all recent results...`);
+    // Debug: show recent results to help diagnose
+    const { rows: recentRows } = await pool.query(
+      `SELECT id, email, created_at, step_data->>'email' as step_email
+       FROM results 
+       WHERE created_at > NOW() - INTERVAL '24 hours'
+       ORDER BY created_at DESC 
+       LIMIT 5`
+    );
+    if (recentRows.length > 0) {
+      console.log(`[DB] Recent results (last 24h):`, recentRows.map(r => ({
+        id: r.id,
+        email: r.email,
+        step_email: r.step_email,
+        created: r.created_at
+      })));
+    }
+  }
+  
+  return rows[0] || null;
 }
 
 export async function saveHoroscope({ userId, type, date, guidance, emotionScore, energyScore, month, year, monthName }) {
@@ -369,4 +468,20 @@ export async function updateResultSpeedOption(resultId, speedOption) {
 export function getPool() {
   return pool;
 }
+
+export async function findRecentJobByEmail(email) {
+  if (!pool) return null;
+  if (!email) return null;
+  const cleanedEmail = email.trim().toLowerCase();
+  const { rows } = await pool.query(
+    `SELECT id, status, created_at 
+     FROM jobs 
+     WHERE email = $1 
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [cleanedEmail]
+  );
+  return rows[0] || null;
+}
+
 

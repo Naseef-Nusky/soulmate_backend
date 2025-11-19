@@ -248,6 +248,113 @@ export async function sendArtistRequestEmail({ requestEmail, contact, notes, job
   });
 }
 
+export async function sendSketchReadyEmail({ to, name, sketchUrl }) {
+  if (!sendGridApiKey) {
+    const error = new Error('SendGrid API key not configured. Set SENDGRID_API_KEY in .env');
+    console.error('[Email] Sketch ready email cannot be sent:', error.message);
+    throw error;
+  }
+  
+  // Validate and normalize email
+  if (!to) {
+    const error = new Error('Email address is required for sketch ready email');
+    console.error('[Email] Sketch ready email cannot be sent:', error.message);
+    throw error;
+  }
+  
+  const normalizedEmail = String(to).trim().toLowerCase();
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    const error = new Error(`Invalid email address: ${to}`);
+    console.error('[Email] Sketch ready email cannot be sent:', error.message);
+    throw error;
+  }
+  
+  if (EMAIL_LOGS) {
+    console.log(`[Email] Preparing to send sketch ready email to: ${normalizedEmail}`);
+  }
+  
+  const appUrl = process.env.APP_URL || 'http://localhost:5173';
+  const dashboardUrl = sketchUrl || `${appUrl}/dashboard?tab=insight&showSoulmate=true`;
+  const escapedDashboardUrl = dashboardUrl.replace(/"/g, '&quot;');
+  
+  const html = `
+    <!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Soulmate Sketch is Ready — GuruLink</title>
+  </head>
+  <body style="margin:0; padding:0; font-family:Arial, sans-serif; background-color:#f5f5f5;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+      <tr>
+        <td align="center" style="padding:40px 20px;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; max-width:600px;">
+            <tr>
+              <td style="padding:40px 30px;">
+
+                <h2 style="margin:0 0 12px 0; font-size:22px; color:#111;">Your Personalized Sketch is Ready!</h2>
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">Hello${name ? `, ${name}` : ''},</p>
+
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  Great news! Your personalized sketch and reading from GuruLink are now ready. Our artists have carefully analyzed your details and crafted a precise, meaningful portrait and interpretation just for you.
+                </p>
+
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  Your soulmate sketch includes:
+                </p>
+
+                <ul style="margin:0 0 16px 0; padding-left:20px; color:#111;">
+                  <li style="margin:8px 0;">A beautifully hand-drawn portrait of your soulmate</li>
+                  <li style="margin:8px 0;">Personalized astrological compatibility analysis</li>
+                  <li style="margin:8px 0;">Detailed description of your soulmate's character and traits</li>
+                  <li style="margin:8px 0;">Insights into your emotional connection</li>
+                </ul>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" style="padding:20px 0;">
+                      <a href="${escapedDashboardUrl}" target="_blank" style="display:inline-block; background-color:#D4A34B; color:#1A2336; padding:12px 18px; border-radius:8px; font-weight:600; font-size:16px; text-decoration:none;">
+                        View Your Soulmate Sketch
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:20px 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  We appreciate your patience while we created something truly special for you!
+                </p>
+
+                <p style="margin:0; font-size:16px; color:#111; line-height:1.6;">
+                  With insight and guidance,<br/>The GuruLink Team
+                </p>
+
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+  `;
+  
+  try {
+    await sendEmail({
+      to: normalizedEmail,
+      subject: 'Your Soulmate Sketch is Ready!',
+      html,
+      categories: ['sketch-ready', 'soulmate'],
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] ✅ Sketch ready email sent successfully to ${normalizedEmail}`);
+    }
+  } catch (error) {
+    console.error(`[Email] ❌ Sketch ready email failed to send to ${normalizedEmail}:`, error?.message || error);
+    throw error;
+  }
+}
+
 export async function sendLoginLinkEmail({ to, loginLink, name }) {
   if (!sendGridApiKey) {
     console.error('[Email] Cannot send login link: SendGrid API key not configured');
@@ -353,6 +460,7 @@ If you did not request this login link, please ignore this email.`;
     throw error;
   }
 }
+
 
 export async function sendMonthlyHoroscopeEmail({ to, report, month, year, subscription }) {
   if (!sendGridApiKey) return;

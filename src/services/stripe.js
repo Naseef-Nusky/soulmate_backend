@@ -19,46 +19,83 @@ export function getStripe() {
   return ensureStripe();
 }
 
-export async function createTrialPaymentIntent({
-  amount,
-  currency,
+/**
+ * Create a Stripe Checkout Session for the paid trial flow.
+ * Phase 1: charge £1 immediately using STRIPE_TRIAL_PRICE_ID (recurring 7-day price)
+ * Phase 2: webhook swaps to STRIPE_MONTHLY_PRICE_ID before the second billing cycle.
+ */
+export async function createCheckoutSession({
   email,
   name,
   birthDate,
+  successUrl,
+  cancelUrl,
 }) {
   const stripe = ensureStripe();
-  return stripe.paymentIntents.create({
-    amount,
-    currency: currency.toLowerCase(),
-    description: 'GuruLink 7-day trial',
-    automatic_payment_methods: { enabled: true },
-    receipt_email: email,
-    metadata: {
-      email: email?.trim().toLowerCase() || '',
-      name: name || '',
-      birthDate: birthDate || '',
+  const trialPriceId = process.env.STRIPE_TRIAL_PRICE_ID;
+  const monthlyPriceId = process.env.STRIPE_MONTHLY_PRICE_ID;
+
+  if (!trialPriceId || !monthlyPriceId) {
+    throw new Error('STRIPE_TRIAL_PRICE_ID and STRIPE_MONTHLY_PRICE_ID must be configured');
+  }
+
+  const normalizedEmail = email?.trim().toLowerCase();
+  const metadata = {
+    email: normalizedEmail || '',
+    name: name || '',
+    birthDate: birthDate || '',
+    type: 'paid_trial',
+  };
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card','link'],
+    customer_email: normalizedEmail,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata,
+    line_items: [
+      {
+        price: trialPriceId,
+        quantity: 1,
+      },
+    ],
+    subscription_data: {
+      metadata: {
+        ...metadata,
+        nextPriceId: monthlyPriceId,
+        signupCreated: 'false',
+      },
     },
+  });
+
+  return session;
+}
+
+/**
+ * Retrieve a Checkout Session (expanded with subscription details)
+ */
+export async function retrieveCheckoutSession(sessionId) {
+  const stripe = ensureStripe();
+  return stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['subscription'],
   });
 }
 
-export async function retrievePaymentIntent(paymentIntentId) {
-  const stripe = ensureStripe();
-  return stripe.paymentIntents.retrieve(paymentIntentId);
-}
-
-export async function markSignupCreated(paymentIntentId) {
+/**
+ * Mark subscription metadata as signup created
+ */
+export async function markSubscriptionSignupCreated(subscriptionId) {
   const stripe = ensureStripe();
   try {
-    const current = await stripe.paymentIntents.retrieve(paymentIntentId);
-    await stripe.paymentIntents.update(paymentIntentId, {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    await stripe.subscriptions.update(subscriptionId, {
       metadata: {
-        ...current.metadata,
+        ...subscription.metadata,
         signupCreated: 'true',
       },
     });
   } catch (error) {
-    console.warn('[Stripe] Unable to mark payment intent as used:', error?.message || error);
+    console.warn('[Stripe] Unable to mark subscription as used:', error?.message || error);
   }
 }
-
-

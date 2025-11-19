@@ -31,6 +31,13 @@ FALLBACK_IMAGE_URL_TEMPLATE=https://api.dicebear.com/7.x/{style}/png?seed={seed}
 
 # Stripe Payments (required for gated signup)
 STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...  # For webhook signature verification
+STRIPE_TRIAL_PRICE_ID=price_...  # Recurring trial price (interval=day, interval_count=7, amount≈£1.00)
+STRIPE_MONTHLY_PRICE_ID=price_...  # Recurring monthly price (interval=month, amount≈£29.99)
+# IMPORTANT: 
+# - STRIPE_TRIAL_PRICE_ID must be a recurring 7-day price so Checkout can build Phase 1
+# - STRIPE_MONTHLY_PRICE_ID is the recurring monthly price for Phase 2
+# Stripe charges Phase 1 immediately, then auto-transitions to Phase 2 after 7 days
 
 # DigitalOcean Spaces (for image storage)
 # Required to upload images to Spaces and store the public URL in DB
