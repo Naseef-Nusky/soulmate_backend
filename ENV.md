@@ -39,6 +39,11 @@ STRIPE_MONTHLY_PRICE_ID=price_...  # Recurring monthly price (interval=month, am
 # - STRIPE_MONTHLY_PRICE_ID is the recurring monthly price for Phase 2
 # Stripe charges Phase 1 immediately, then auto-transitions to Phase 2 after 7 days
 
+# Sketch delivery timing controls (optional)
+SKETCH_RELEASE_DELAY_MINUTES=600  # Actual delay (10h) before sketch becomes viewable
+SKETCH_PROMISED_HOURS=24          # Messaging window shown to customers
+BACKEND_PUBLIC_URL=https://api.example.com  # Used to build absolute /api/images URLs
+
 # DigitalOcean Spaces (for image storage)
 # Required to upload images to Spaces and store the public URL in DB
 SPACES_ACCESS_KEY_ID=DOXXXXXXXXXXXXXXX

@@ -418,6 +418,22 @@ export async function getResultsByDateRange(startDate, endDate) {
   return rows || [];
 }
 
+export async function getPendingSketchReleaseResults(limit = 10) {
+  if (!pool) return [];
+  const { rows } = await pool.query(
+    `SELECT id, email, image_url, image_data, step_data
+     FROM results
+     WHERE step_data IS NOT NULL
+       AND step_data->>'sketchReleaseAt' IS NOT NULL
+       AND (step_data->>'twinFlameEmailSent' IS NULL OR step_data->>'twinFlameEmailSent' = 'false')
+       AND (step_data->>'sketchReleaseAt')::timestamptz <= NOW()
+     ORDER BY (step_data->>'sketchReleaseAt')::timestamptz ASC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows || [];
+}
+
 export async function updateResultSpeedOption(resultId, speedOption) {
   if (!pool) return null;
   try {

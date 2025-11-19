@@ -114,28 +114,45 @@ router.get('/soulmate-sketch', async (req, res) => {
       });
     }
     
-    // Get the most recent result with an image
+    // Get the most recent result with an image or step data
     const latestResult = results.find(r => r.image_url || r.image_data) || results[0];
+    const stepData = latestResult.step_data || {};
+    const releaseDelayMinutes = Number(stepData.sketchReleaseDelayMinutes || process.env.SKETCH_RELEASE_DELAY_MINUTES || 600);
+    const promisedWindowHours = Number(stepData.promisedWindowHours || process.env.SKETCH_PROMISED_HOURS || 24);
+    const releaseAtIso = stepData.sketchReleaseAt || null;
+    const releaseAt = releaseAtIso ? new Date(releaseAtIso) : null;
+    const now = new Date();
+    const isReady = !releaseAt || now >= releaseAt;
+    const timeRemainingMs = releaseAt && now < releaseAt ? Math.max(0, releaseAt.getTime() - now.getTime()) : 0;
     
-    // Build image URL - show immediately, no timing restrictions
-    let imageUrl = latestResult.image_url;
-    if (!imageUrl && latestResult.id) {
-      // Use the image endpoint if image_data exists
-      const appUrl = process.env.APP_URL || 'http://localhost:4000';
-      imageUrl = `${appUrl}/api/images/${latestResult.id}`;
+    // Build image URL - only reveal when ready
+    let imageUrl = null;
+    if (isReady) {
+      imageUrl = latestResult.image_url;
+      if (!imageUrl && latestResult.id) {
+        const apiBase = (
+          process.env.BACKEND_PUBLIC_URL
+          || process.env.API_PUBLIC_URL
+          || `http://localhost:${process.env.PORT || 4000}`
+        ).replace(/\/$/, '');
+        imageUrl = `${apiBase}/api/images/${latestResult.id}`;
+      }
     }
     
     res.json({
-      hasSketch: true,
-      imageUrl, // Always show image if available
-      astrology: latestResult.astrology,
+      hasSketch: Boolean(latestResult),
+      imageUrl,
+      astrology: isReady ? latestResult.astrology : null,
       createdAt: latestResult.created_at,
       id: latestResult.id,
-      isReady: true, // Always ready
-      readyAt: null,
+      isReady,
+      readyAt: releaseAtIso,
       timingOption: 'standard',
       needsPayment: false,
-      timeRemaining: 0,
+      timeRemainingMs,
+      releaseDelayMinutes,
+      promisedWindowHours,
+      sketchGeneratedAt: stepData.sketchGeneratedAt || null,
     });
   } catch (error) {
     console.error('[Astrology] Soulmate sketch error:', error);

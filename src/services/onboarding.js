@@ -1,19 +1,23 @@
-import { createSignup, generateToken, generateLoginToken } from './auth.js';
+import { createSignup, generateToken, generateLoginToken, findSignupByEmail } from './auth.js';
 import {
   generateDailyHoroscope,
   generateTomorrowHoroscope,
   generateMonthlyHoroscope,
   generateNatalChartReport,
 } from './astrology.js';
-import { sendLoginLinkEmail } from './email.js';
+import { sendLoginLinkEmail, sendSketchProcessingEmail } from './email.js';
 import { getLatestResultByEmail, findRecentJobByEmail, createJob } from './db.js';
 
-export async function provisionSignupAndSendLogin({ email, name, birthDate }) {
+const SKETCH_PROMISED_HOURS = Number(process.env.SKETCH_PROMISED_HOURS || 24);
+
+export async function provisionSignupAndSendLogin({ email, name, birthDate, sendEmails = true }) {
   if (!email) {
     throw new Error('Email is required for signup provisioning');
   }
 
   const cleanedEmail = email.trim().toLowerCase();
+
+  const existingSignup = await findSignupByEmail(cleanedEmail);
 
   // Check if quiz data exists - if yes, use it to update signup with complete birth data
   const latestResult = await getLatestResultByEmail(cleanedEmail);
@@ -39,10 +43,19 @@ export async function provisionSignupAndSendLogin({ email, name, birthDate }) {
     birthDate: finalBirthDate,
   });
 
+  const createdTime = signup?.created_at ? new Date(signup.created_at).getTime() : null;
+  const updatedTime = signup?.updated_at ? new Date(signup.updated_at).getTime() : null;
+  const timestampsEqual = createdTime && updatedTime && Math.abs(updatedTime - createdTime) < 1500;
+  const signupCreatedNow = !existingSignup && timestampsEqual;
+
   const token = generateToken(signup.email);
-  const loginToken = generateLoginToken(signup.email);
-  const appUrl = process.env.APP_URL || 'http://localhost:5173';
-  const loginLink = `${appUrl}/login?token=${loginToken}`;
+  let loginLink = null;
+
+  if (signupCreatedNow) {
+    const loginToken = generateLoginToken(signup.email);
+    const appUrl = process.env.APP_URL || 'http://localhost:5173';
+    loginLink = `${appUrl}/login?token=${loginToken}`;
+  }
 
   // Only generate horoscopes if quiz data exists (otherwise ensurePostPaymentGeneration will handle it)
   let horoscope = null;
@@ -80,14 +93,30 @@ export async function provisionSignupAndSendLogin({ email, name, birthDate }) {
     console.log(`[Onboarding] Quiz data not found for ${cleanedEmail} - horoscope generation will happen via job queue`);
   }
 
-  try {
-    await sendLoginLinkEmail({
-      to: signup.email,
-      loginLink,
-      name: signup.name,
-    });
-  } catch (emailError) {
-    console.error('[Onboarding] Failed to send login link email:', emailError?.message || emailError);
+  if (sendEmails && signupCreatedNow && loginLink) {
+    try {
+      await sendLoginLinkEmail({
+        to: signup.email,
+        loginLink,
+        name: signup.name,
+      });
+    } catch (emailError) {
+      console.error('[Onboarding] Failed to send login link email:', emailError?.message || emailError);
+    }
+
+    try {
+      await sendSketchProcessingEmail({
+        to: signup.email,
+        name: signup.name,
+        etaHours: SKETCH_PROMISED_HOURS,
+      });
+    } catch (processingError) {
+      console.error('[Onboarding] Failed to send sketch processing email:', processingError?.message || processingError);
+    }
+  } else if (!sendEmails) {
+    console.log(`[Onboarding] Emails suppressed for ${cleanedEmail} (sendEmails=false)`);
+  } else {
+    console.log(`[Onboarding] Signup already existed for ${cleanedEmail} - skipping login & processing emails`);
   }
 
   return {

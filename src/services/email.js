@@ -108,7 +108,7 @@ export async function sendResultsEmail({ to, report, imageUrl }) {
   });
 }
 
-export async function sendTwinFlameEmail({ to, imageUrl }) {
+export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
   if (!sendGridApiKey) {
     const error = new Error('SendGrid API key not configured. Set SENDGRID_API_KEY in .env');
     console.error('[Email] Twin Flame email cannot be sent:', error.message);
@@ -133,8 +133,8 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
     console.log(`[Email] Preparing to send Twin Flame email to: ${normalizedEmail}`);
   }
   
-  const ctaUrl = imageUrl || process.env.APP_URL || 'http://localhost:5173';
-  const escapedCtaUrl = ctaUrl.replace(/"/g, '&quot;');
+  const primaryCtaUrl = ctaUrl || imageUrl || process.env.APP_URL || 'http://localhost:5173';
+  const escapedCtaUrl = primaryCtaUrl.replace(/"/g, '&quot;');
   const escapedImageUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;') : '';
   
   const html = `
@@ -190,7 +190,7 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
                   </tr>
                 </table>
 
-                ${imageUrl ? `<img src="${escapedImageUrl}" alt="Soulmate portrait" style="max-width:100%; border-radius:10px; display:block; margin:20px 0;" />` : ''}
+                ${escapedImageUrl ? `<img src="${escapedImageUrl}" alt="Soulmate portrait" style="max-width:100%; border-radius:10px; display:block; margin:20px 0;" />` : ''}
 
                 <p style="margin:20px 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
                   These alignments are rare — the person connected to your energy may be seeking you at this very moment.
@@ -226,6 +226,98 @@ export async function sendTwinFlameEmail({ to, imageUrl }) {
   }
 }
 
+export async function sendSketchProcessingEmail({ to, name, etaHours = 24 }) {
+  if (!sendGridApiKey) {
+    const error = new Error('SendGrid API key not configured. Set SENDGRID_API_KEY in .env');
+    console.error('[Email] Sketch processing email cannot be sent:', error.message);
+    throw error;
+  }
+
+  if (!to) {
+    const error = new Error('Email address is required for sketch processing email');
+    console.error('[Email] Sketch processing email cannot be sent:', error.message);
+    throw error;
+  }
+
+  const normalizedEmail = String(to).trim().toLowerCase();
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    const error = new Error(`Invalid email address: ${to}`);
+    console.error('[Email] Sketch processing email cannot be sent:', error.message);
+    throw error;
+  }
+
+  const appUrl = process.env.APP_URL || 'http://localhost:5173';
+  const dashboardUrl = `${appUrl}/dashboard?tab=insight`;
+  const escapedDashboardUrl = dashboardUrl.replace(/"/g, '&quot;');
+
+  const displayName = name ? `, ${name}` : '';
+
+  const html = `
+    <!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Sketch Is In Progress — GuruLink</title>
+  </head>
+  <body style="margin:0; padding:0; font-family:Arial, sans-serif; background-color:#f5f5f5;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+      <tr>
+        <td align="center" style="padding:40px 20px;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; max-width:600px;">
+            <tr>
+              <td style="padding:40px 30px;">
+
+                <h2 style="margin:0 0 12px 0; font-size:22px; color:#111;">Your Soulmate Sketch Is in Progress${displayName}</h2>
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  Thank you for trusting GuruLink. Our lead artist has begun crafting your soulmate portrait using the birth data and answers you provided.
+                </p>
+
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  <strong>Estimated delivery:</strong> within the next ${etaHours} hours. We’ll notify you the moment it’s ready to view.
+                </p>
+
+                <ul style="margin:0 0 16px 0; padding-left:20px; color:#111;">
+                  <li style="margin:8px 0;">Hand-rendered portrait guided by your astrological profile</li>
+                  <li style="margin:8px 0;">Personalized romantic insights tied to your cosmic blueprint</li>
+                  <li style="margin:8px 0;">Exclusive access to the Insight dashboard once complete</li>
+                </ul>
+
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  You can return to your dashboard at any time to check progress or explore today’s horoscope.
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" style="padding:20px 0;">
+                      <a href="${escapedDashboardUrl}" target="_blank" style="display:inline-block; background-color:#D4A34B; color:#1A2336; padding:12px 18px; border-radius:8px; font-weight:600; font-size:16px; text-decoration:none;">
+                        Visit Your Dashboard
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:20px 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  With insight and guidance,<br/>The GuruLink Team
+                </p>
+
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+  `;
+
+  await sendEmail({
+    to: normalizedEmail,
+    subject: 'Your soulmate sketch is in progress',
+    html,
+    categories: ['sketch-processing'],
+  });
+}
 export async function sendArtistRequestEmail({ requestEmail, contact, notes, jobId, answers }) {
   if (!sendGridApiKey) return;
   

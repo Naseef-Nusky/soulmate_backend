@@ -6,6 +6,8 @@ import { getStripe, retrieveCheckoutSession, markSubscriptionSignupCreated } fro
 import { provisionSignupAndSendLogin } from '../services/onboarding.js';
 
 const router = express.Router();
+const SKETCH_RELEASE_DELAY_MINUTES = Number(process.env.SKETCH_RELEASE_DELAY_MINUTES || 600);
+const SKETCH_PROMISED_WINDOW_HOURS = Number(process.env.SKETCH_PROMISED_HOURS || 24);
 
 router.post('/register', async (req, res) => {
   try {
@@ -77,11 +79,11 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Payment email does not match registration email.' });
     }
 
-    // Check if account already exists for this payment session
     const { signup, token, loginLink, horoscope } = await provisionSignupAndSendLogin({
       email: cleanedEmail,
       name,
       birthDate,
+      sendEmails: true,
     });
     
     // Normalize quiz data structure - handle different formats
@@ -245,21 +247,29 @@ router.post('/register', async (req, res) => {
           
           // STEP 2: Update existing record with generated sketch
           console.log(`[Auth] Step 2: Updating database with generated sketch for ${cleanedEmail}...`);
+          const sketchGeneratedAt = new Date();
+          const sketchReleaseAt = new Date(sketchGeneratedAt.getTime() + SKETCH_RELEASE_DELAY_MINUTES * 60 * 1000);
+          const baseStepData = {
+            ...finalQuizData,
+            answers: finalQuizData.answers,
+            birthDetails,
+            email: cleanedEmail,
+            savedBeforeGeneration: true,
+            sketchGenerated: true,
+            sketchGeneratedAt: sketchGeneratedAt.toISOString(),
+            sketchReleaseAt: sketchReleaseAt.toISOString(),
+            sketchReleaseDelayMinutes: SKETCH_RELEASE_DELAY_MINUTES,
+            promisedWindowHours: SKETCH_PROMISED_WINDOW_HOURS,
+            twinFlameEmailSent: false,
+            twinFlameEmailScheduled: true,
+          };
           try {
             const { updateResult } = await import('../services/db.js');
             if (savedResult?.id) {
               await updateResult(savedResult.id, {
                 imageUrl: spacesUrl || image?.url || null,
                 imageData: spacesUrl ? null : (image?.imageData || null),
-                stepData: {
-                  ...finalQuizData,
-                  answers: finalQuizData.answers,
-                  birthDetails,
-                  email: cleanedEmail,
-                  savedBeforeGeneration: true,
-                  sketchGenerated: true,
-                  timestamp: new Date().toISOString(),
-                },
+                stepData: baseStepData,
               });
               console.log(`[Auth] ✅ Sketch updated in database (result ID: ${savedResult.id})`);
             } else {
@@ -271,14 +281,7 @@ router.post('/register', async (req, res) => {
                 astrology,
                 answers: finalQuizData.answers,
                 email: cleanedEmail,
-                stepData: {
-                  ...finalQuizData,
-                  answers: finalQuizData.answers,
-                  birthDetails,
-                  email: cleanedEmail,
-                  sketchGenerated: true,
-                  timestamp: new Date().toISOString(),
-                },
+                stepData: baseStepData,
               });
               console.log(`[Auth] ✅ Quiz data and sketch saved to database (result ID: ${newResult?.id})`);
             }

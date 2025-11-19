@@ -4,7 +4,6 @@ import path from 'path';
 import { calculateAstrology, generateDailyHoroscope } from '../services/astrology.js';
 import { generatePencilSketchFromAnswers } from '../services/openai.js';
 import { saveResult } from '../services/db.js';
-import { sendTwinFlameEmail } from '../services/email.js';
 import { uploadPngToSpaces } from '../services/storage.js';
 import { validateGeneratePayload } from '../utils/validators.js';
 import { createSignup } from '../services/auth.js';
@@ -36,12 +35,24 @@ router.post('/', async (req, res) => {
     }
 
     // Capture ALL step data from the request body as JSON (including any extra fields)
+    const releaseDelayMinutes = Number(process.env.SKETCH_RELEASE_DELAY_MINUTES || 600);
+    const promisedWindowHours = Number(process.env.SKETCH_PROMISED_HOURS || 24);
+    const sketchGeneratedAt = new Date();
+    const sketchReleaseAt = new Date(sketchGeneratedAt.getTime() + releaseDelayMinutes * 60 * 1000);
+
     const stepData = {
       ...req.body, // Include everything from the request
       answers,
       birthDetails,
       email,
       timestamp: new Date().toISOString(),
+      sketchGenerated: true,
+      sketchGeneratedAt: sketchGeneratedAt.toISOString(),
+      sketchReleaseAt: sketchReleaseAt.toISOString(),
+      sketchReleaseDelayMinutes: releaseDelayMinutes,
+      promisedWindowHours,
+      twinFlameEmailSent: false,
+      twinFlameEmailScheduled: true,
       // This ensures all quiz step data is preserved
     };
 
@@ -114,24 +125,6 @@ router.post('/', async (req, res) => {
           // eslint-disable-next-line no-console
           console.warn('[Generate] Horoscope pre-generation skipped:', err?.message || err);
         });
-    }
-
-    // Send Twin Flame email AFTER generation completes (if email provided)
-    if (email) {
-      console.log(`[Generate] Attempting to send Twin Flame email to: ${email}, imageUrl: ${imageUrl ? 'provided' : 'not provided'}`);
-      try {
-        await sendTwinFlameEmail({ to: email, imageUrl: imageUrl || '' });
-        console.log(`[Generate] ✅ Twin Flame email sent successfully to ${email}`);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[Generate] ❌ TwinFlame email send failed:', {
-          email,
-          error: err?.message || err,
-          response: err?.response?.body || null,
-          statusCode: err?.response?.statusCode || null,
-        });
-        // Continue even if email fails - don't block the response
-      }
     }
 
     return res.json({

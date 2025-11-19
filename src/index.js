@@ -78,6 +78,7 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
                 email: emailFromSession,
                 name: nameFromSession,
                 birthDate: birthDateFromSession,
+                sendEmails: false,
               });
               signupCreated = true;
               console.log('[Webhook] Signup provisioned automatically for email:', emailFromSession);
@@ -155,6 +156,25 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
                   }
                 }
                 
+                const releaseDelayMinutes = Number(process.env.SKETCH_RELEASE_DELAY_MINUTES || 600);
+                const promisedWindowHours = Number(process.env.SKETCH_PROMISED_HOURS || 24);
+                const sketchGeneratedAt = new Date();
+                const sketchReleaseAt = new Date(sketchGeneratedAt.getTime() + releaseDelayMinutes * 60 * 1000);
+                const updatedStepDataBase = {
+                  ...stepData,
+                  answers,
+                  birthDetails,
+                  email: emailFromSession,
+                  generatedAfterPayment: true,
+                  sketchGenerated: true,
+                  sketchGeneratedAt: sketchGeneratedAt.toISOString(),
+                  sketchReleaseAt: sketchReleaseAt.toISOString(),
+                  sketchReleaseDelayMinutes: releaseDelayMinutes,
+                  promisedWindowHours,
+                  twinFlameEmailSent: false,
+                  twinFlameEmailScheduled: true,
+                };
+                
                 // Update existing result with generated sketch
                 if (latestResult?.id && image && (spacesUrl || image.imageData)) {
                   try {
@@ -162,15 +182,7 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
                     await updateResult(latestResult.id, {
                       imageUrl: spacesUrl || image?.url || null,
                       imageData: spacesUrl ? null : (image?.imageData || null),
-                      stepData: {
-                        ...stepData,
-                        answers,
-                        birthDetails,
-                        email: emailFromSession,
-                        generatedAfterPayment: true,
-                        sketchGenerated: true,
-                        timestamp: new Date().toISOString(),
-                      },
+                      stepData: updatedStepDataBase,
                     });
                     console.log(`[Webhook] ✅ Sketch updated in database (result ID: ${latestResult.id})`);
                   } catch (updateError) {
@@ -186,15 +198,7 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
                       astrology,
                       answers,
                       email: emailFromSession,
-                      stepData: {
-                        ...stepData,
-                        answers,
-                        birthDetails,
-                        email: emailFromSession,
-                        generatedAfterPayment: true,
-                        sketchGenerated: true,
-                        timestamp: new Date().toISOString(),
-                      },
+                      stepData: updatedStepDataBase,
                     });
                     console.log(`[Webhook] ✅ Quiz data and sketch saved to database`);
                   } catch (saveError) {
