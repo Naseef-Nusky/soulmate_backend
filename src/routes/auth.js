@@ -1,9 +1,10 @@
 import express from 'express';
 import { findSignupByEmail, generateToken, generateLoginToken, verifyLoginToken, updateProfile, getProfile, verifyToken } from '../services/auth.js';
-import { sendLoginLinkEmail } from '../services/email.js';
+import { sendLoginLinkEmail, sendVerificationCodeEmail, sendCancellationConfirmationEmail } from '../services/email.js';
 import { generateDailyHoroscope, generateTomorrowHoroscope, generateMonthlyHoroscope, generateNatalChartReport } from '../services/astrology.js';
 import { getStripe, retrieveCheckoutSession, markSubscriptionSignupCreated } from '../services/stripe.js';
 import { provisionSignupAndSendLogin } from '../services/onboarding.js';
+import { generateVerificationCode, storeVerificationCode, verifyCode, removeVerificationCode } from '../services/verification.js';
 
 const router = express.Router();
 const SKETCH_RELEASE_DELAY_MINUTES = Number(process.env.SKETCH_RELEASE_DELAY_MINUTES || 600);
@@ -655,6 +656,182 @@ router.get('/subscription', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[Auth] Get subscription error:', error);
     res.status(500).json({ error: error.message || 'Failed to get subscription details' });
+  }
+});
+
+// Send verification code for cancellation
+router.post('/cancel/send-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    const normalizedEmail = email.trim().toLowerCase();
+    const signup = await findSignupByEmail(normalizedEmail);
+    
+    if (!signup) {
+      return res.status(404).json({
+        error: 'No account found with this email address. Please check your email and try again.',
+      });
+    }
+    
+    // Check if user has an active subscription before sending verification code
+    const stripe = getStripe();
+    let hasActiveSubscription = false;
+    
+    try {
+      // Find customer by email
+      const customers = await stripe.customers.list({
+        email: normalizedEmail,
+        limit: 1,
+      });
+      
+      if (customers.data.length > 0) {
+        const customer = customers.data[0];
+        
+        // Check for active subscriptions
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: 'active',
+          limit: 1,
+        });
+        
+        hasActiveSubscription = subscriptions.data.length > 0;
+      }
+    } catch (stripeError) {
+      console.error('[Auth] Error checking subscription:', stripeError);
+      // Continue anyway - we'll check again during cancellation
+    }
+    
+    if (!hasActiveSubscription) {
+      return res.status(404).json({
+        error: 'No active subscription found for this account. If you believe this is an error, please contact support.',
+      });
+    }
+    
+    // Generate and store verification code
+    const code = generateVerificationCode();
+    storeVerificationCode(normalizedEmail, code);
+    
+    // Send verification code email
+    try {
+      await sendVerificationCodeEmail({
+        to: normalizedEmail,
+        code,
+        name: signup.name,
+      });
+    } catch (emailError) {
+      console.error('[Auth] Failed to send verification code email:', emailError);
+      return res.status(500).json({ error: 'Failed to send verification code. Please try again.' });
+    }
+    
+    res.json({
+      ok: true,
+      message: 'Verification code sent to your email address.',
+    });
+  } catch (error) {
+    console.error('[Auth] Send verification code error:', error);
+    res.status(500).json({ error: error.message || 'Failed to send verification code' });
+  }
+});
+
+// Verify code and cancel subscription
+router.post('/cancel/verify-and-cancel', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and verification code are required' });
+    }
+    
+    const normalizedEmail = email.trim().toLowerCase();
+    
+    // Verify the code
+    const verification = verifyCode(normalizedEmail, code);
+    if (!verification.valid) {
+      return res.status(400).json({ error: verification.error });
+    }
+    
+    // Find user
+    const signup = await findSignupByEmail(normalizedEmail);
+    if (!signup) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get Stripe customer and subscription
+    const stripe = getStripe();
+    let customer = null;
+    let subscription = null;
+    let periodEndDate = null;
+    
+    try {
+      // Find customer by email
+      const customers = await stripe.customers.list({
+        email: normalizedEmail,
+        limit: 1,
+      });
+      
+      if (customers.data.length > 0) {
+        customer = customers.data[0];
+        
+        // Get active subscriptions
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: 'active',
+          limit: 1,
+        });
+        
+        if (subscriptions.data.length > 0) {
+          subscription = subscriptions.data[0];
+          periodEndDate = new Date(subscription.current_period_end * 1000).toISOString();
+          
+          // Cancel subscription at period end
+          await stripe.subscriptions.update(subscription.id, {
+            cancel_at_period_end: true,
+          });
+          
+          console.log(`[Auth] Subscription ${subscription.id} marked for cancellation at period end`);
+        } else {
+          // No active subscription found
+          return res.status(404).json({ error: 'No active subscription found for this account.' });
+        }
+      } else {
+        // No customer found
+        return res.status(404).json({ error: 'No subscription found for this account.' });
+      }
+    } catch (stripeError) {
+      console.error('[Auth] Stripe error during cancellation:', stripeError);
+      return res.status(500).json({ error: 'Failed to cancel subscription. Please contact support.' });
+    }
+    
+    // Send cancellation confirmation email
+    try {
+      await sendCancellationConfirmationEmail({
+        to: normalizedEmail,
+        name: signup.name,
+        periodEndDate,
+      });
+    } catch (emailError) {
+      console.error('[Auth] Failed to send cancellation confirmation email:', emailError);
+      // Don't fail the request if email fails
+    }
+    
+    // Remove verification code
+    removeVerificationCode(normalizedEmail);
+    
+    res.json({
+      ok: true,
+      message: 'Your subscription has been cancelled successfully.',
+      subscription: {
+        cancelAtPeriodEnd: true,
+        periodEndDate,
+      },
+    });
+  } catch (error) {
+    console.error('[Auth] Cancel subscription error:', error);
+    res.status(500).json({ error: error.message || 'Failed to cancel subscription' });
   }
 });
 

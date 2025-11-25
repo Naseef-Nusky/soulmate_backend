@@ -596,3 +596,191 @@ export async function sendMonthlyHoroscopeEmail({ to, report, month, year, subsc
   }
 }
 
+export async function sendVerificationCodeEmail({ to, code, name }) {
+  if (!sendGridApiKey) {
+    console.error('[Email] Cannot send verification code: SendGrid API key not configured');
+    return;
+  }
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; max-width: 600px;">
+              <tr>
+                <td style="padding: 40px 30px;">
+                  <p style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #1A2336;">Please Confirm Your Email Address</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111;">Hey${name ? ` ${name}` : ''}!</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111; line-height: 1.6;">To confirm your email address, please use the following verification code:</p>
+                  
+                  <div style="background-color: #FFF7EB; border: 2px solid #D4A34B; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0;">
+                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Your verification code is:</p>
+                    <p style="margin: 0; font-size: 32px; font-weight: 700; color: #1A2336; letter-spacing: 4px;">${code}</p>
+                  </div>
+                  
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111; line-height: 1.6;">Enter this code in the app to verify your email address.</p>
+                  
+                  <p style="margin: 0 0 24px 0; font-size: 14px; color: #666; line-height: 1.6;">If you didn't request this code, please ignore this email or contact our support team if you have any concerns.</p>
+                  
+                  <p style="margin: 0 0 24px 0; font-size: 16px; color: #111;">Thanks,<br/>The GuruLink Team</p>
+                  
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
+                  
+                  <p style="margin: 0 0 12px 0; font-size: 12px; color: #999; line-height: 1.5;">
+                    © 2025 GuruLink, All rights reserved.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+  
+  const text = `Please Confirm Your Email Address
+
+Hey${name ? ` ${name}` : ''}!
+
+To confirm your email address, please use the following verification code:
+
+Your verification code is: ${code}
+
+Enter this code in the app to verify your email address.
+
+If you didn't request this code, please ignore this email or contact our support team if you have any concerns.
+
+Thanks,
+The GuruLink Team
+
+© 2025 GuruLink, All rights reserved.`;
+  
+  try {
+    await sendEmail({
+      to,
+      subject: 'Please Confirm Your Email Address',
+      html,
+      text,
+      categories: ['verification', 'authentication'],
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] Verification code sent to ${to}`);
+    }
+  } catch (error) {
+    if (EMAIL_LOGS) {
+      console.error(`[Email] Verification code send failed to "${to}":`, error?.message || error);
+    }
+    throw error;
+  }
+}
+
+export async function sendCancellationConfirmationEmail({ to, name, periodEndDate }) {
+  if (!sendGridApiKey) {
+    console.error('[Email] Cannot send cancellation confirmation: SendGrid API key not configured');
+    return;
+  }
+  
+  const formattedDate = periodEndDate ? new Date(periodEndDate).toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }) : 'the end of your current billing cycle';
+  const appUrl = process.env.APP_URL || 'https://gurulink.app';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; max-width: 600px;">
+              <tr>
+                <td style="padding: 40px 30px;">
+                  <p style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #1A2336;">Subscription Cancelled</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111;">Hi there${name ? ` ${name}` : ''},</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111; line-height: 1.6;">We're sorry to hear that you've decided to cancel your subscription. We understand that we may not have met your expectations this time.</p>
+                  
+                  <div style="background-color: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <p style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #1A2336;">Your subscription has been cancelled</p>
+                    <p style="margin: 0; font-size: 14px; color: #666; line-height: 1.6;">You will still have access to the app until the end of your current billing cycle on <strong>${formattedDate}</strong>. After this date, your subscription will not renew.</p>
+                  </div>
+                  
+                  <div style="margin: 30px 0;">
+                    <p style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #1A2336;">Need Help?</p>
+                    <p style="margin: 0 0 20px 0; font-size: 14px; color: #666; line-height: 1.6;">
+                      Our support team is available any time—visit our
+                      <a href="${appUrl}/support" style="color: #D4A34B; text-decoration: underline;">Support page</a>
+                      if you need any assistance.
+                    </p>
+                  </div>
+                  
+                  <p style="margin: 0 0 24px 0; font-size: 16px; color: #111; line-height: 1.6;">We truly appreciate your time as a valued subscriber, and we're here for you if you need anything in the future.</p>
+                  
+                  <p style="margin: 0 0 24px 0; font-size: 16px; color: #111;">Warm regards,<br/>The GuruLink Team</p>
+                  
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
+                  
+                  <p style="margin: 0 0 12px 0; font-size: 12px; color: #999; line-height: 1.5;">
+                    © 2025 GuruLink, All rights reserved.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+  
+  const text = `Subscription Cancelled
+
+Hi there${name ? ` ${name}` : ''},
+
+We're sorry to hear that you've decided to cancel your subscription. We understand that we may not have met your expectations this time.
+
+Your subscription has been cancelled, and you will still have access to the app until the end of your current billing cycle on ${formattedDate}. After this date, your subscription will not renew.
+
+Need Help?
+
+Our support team is available any time—visit our Support page: ${appUrl}/support
+
+We truly appreciate your time as a valued subscriber, and we're here for you if you need anything in the future.
+
+Warm regards,
+The GuruLink Team
+
+© 2025 GuruLink, All rights reserved.`;
+  
+  try {
+    await sendEmail({
+      to,
+      subject: 'Subscription Cancelled',
+      html,
+      text,
+      categories: ['cancellation', 'subscription'],
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] Cancellation confirmation sent to ${to}`);
+    }
+  } catch (error) {
+    if (EMAIL_LOGS) {
+      console.error(`[Email] Cancellation confirmation send failed to "${to}":`, error?.message || error);
+    }
+    throw error;
+  }
+}
+

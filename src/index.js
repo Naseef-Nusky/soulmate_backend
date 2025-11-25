@@ -27,9 +27,49 @@ const app = express();
 const server = createServer(app);
 
 const PORT = process.env.PORT || 4000;
-const ORIGIN = process.env.APP_URL || '*';
+// Allow multiple origins for mobile app support
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : (process.env.APP_URL ? [process.env.APP_URL] : ['*']);
 
-app.use(cors({ origin: ORIGIN }));
+// Add mobile app origins that Capacitor uses
+const mobileOrigins = [
+  'https://localhost',           // Capacitor Android/iOS
+  'capacitor://localhost',       // Capacitor iOS
+  'http://localhost',            // Capacitor Android (sometimes)
+  'ionic://localhost',           // Ionic/Capacitor
+  'file://'                      // File protocol (mobile apps)
+];
+
+app.use(cors({ 
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    
+    // Check if origin is a mobile app origin (Capacitor)
+    const isMobileOrigin = mobileOrigins.some(mobileOrigin => 
+      origin.startsWith(mobileOrigin) || origin === mobileOrigin
+    );
+    
+    if (isMobileOrigin) {
+      callback(null, true);
+      return;
+    }
+    
+    // Reject if not allowed
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 
 // Stripe webhook endpoint (must be before express.json() middleware for raw body)
 app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -271,9 +311,47 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
       break;
     
     case 'customer.subscription.trial_will_end':
-      console.log('[Webhook] Trial ending soon for subscription:', event.data.object.id);
-      // Trial ending in 3 days - monthly billing will start automatically
-      // No action needed, Stripe handles subscription billing automatically
+      // Trial ending in 3 days - switch to monthly price BEFORE trial ends
+      // This ensures Day 8 charges £29.99 instead of another £1
+      const trialEndingSubscription = event.data.object;
+      console.log('[Webhook] Trial ending soon for subscription:', trialEndingSubscription.id);
+      try {
+        const subscriptionId = trialEndingSubscription.id;
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const nextPriceId = subscription.metadata?.nextPriceId;
+        const trialPriceId = process.env.STRIPE_TRIAL_PRICE_ID;
+
+        // Check if this is a trial subscription that needs to switch to monthly
+        const hasTrialPrice = subscription.items?.data?.some(
+          (item) => item.price?.id === trialPriceId
+        );
+
+        if (nextPriceId && hasTrialPrice && subscription.status === 'active') {
+          const currentItem = subscription.items?.data?.[0];
+          if (currentItem) {
+            await stripe.subscriptions.update(subscriptionId, {
+              items: [
+                {
+                  id: currentItem.id,
+                  price: nextPriceId,
+                },
+              ],
+              proration_behavior: 'none',
+            });
+
+            await stripe.subscriptions.update(subscriptionId, {
+              metadata: {
+                ...subscription.metadata,
+                nextPriceId: '',
+              },
+            });
+
+            console.log('[Webhook] Subscription switched to monthly price before trial ends:', subscriptionId);
+          }
+        }
+      } catch (error) {
+        console.error('[Webhook] Error switching subscription price before trial ends:', error.message || error);
+      }
       break;
     
     case 'invoice.payment_succeeded':
@@ -290,27 +368,40 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
             (line) => line.price?.id === trialPriceId
           );
 
-          if (nextPriceId && invoiceHasTrialPrice) {
+          // Switch to monthly price IMMEDIATELY after first trial payment
+          // This ensures Day 7 charges £29.99 instead of another £1
+          if (nextPriceId && invoiceHasTrialPrice && subscription.status === 'active') {
             const currentItem = subscription.items?.data?.[0];
-            if (currentItem) {
-              await stripe.subscriptions.update(subscriptionId, {
-                items: [
-                  {
-                    id: currentItem.id,
-                    price: nextPriceId,
+            if (currentItem && currentItem.price?.id === trialPriceId) {
+              // Check if this is the first invoice (billing_reason === 'subscription_create')
+              // or if we haven't switched yet (nextPriceId still in metadata)
+              const isFirstPayment = invoice.billing_reason === 'subscription_create' || 
+                                     invoice.billing_reason === 'subscription_cycle';
+              
+              if (isFirstPayment) {
+                // Switch price immediately - this will take effect for the next billing cycle
+                // Since we're switching right after first payment, the next cycle (Day 7) will use monthly price
+                await stripe.subscriptions.update(subscriptionId, {
+                  items: [
+                    {
+                      id: currentItem.id,
+                      price: nextPriceId,
+                    },
+                  ],
+                  proration_behavior: 'none',
+                });
+
+                await stripe.subscriptions.update(subscriptionId, {
+                  metadata: {
+                    ...subscription.metadata,
+                    nextPriceId: '',
+                    priceSwitchedAt: new Date().toISOString(),
                   },
-                ],
-                proration_behavior: 'none',
-              });
+                });
 
-              await stripe.subscriptions.update(subscriptionId, {
-                metadata: {
-                  ...subscription.metadata,
-                  nextPriceId: '',
-                },
-              });
-
-              console.log('[Webhook] Subscription switched to monthly price:', subscriptionId);
+                console.log('[Webhook] ✅ Subscription switched to monthly price immediately after first payment:', subscriptionId);
+                console.log('[Webhook] Next billing cycle (Day 7) will charge monthly price instead of trial price');
+              }
             }
           }
         }
