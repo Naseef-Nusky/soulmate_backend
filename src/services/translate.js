@@ -16,35 +16,65 @@ export async function translateTexts({ texts, target, source }) {
 }
 
 async function translateWithGoogleCloud({ q, target, source }) {
-  const body = new URLSearchParams();
-  q.forEach(t => body.append('q', t));
-  body.append('target', String(target));
-  if (source) body.append('source', String(source));
-  body.append('format', 'text');
+  // Google Cloud Translate API has a limit of ~100 texts per request
+  // Batch large requests to avoid hitting limits
+  const BATCH_SIZE = 100;
+  const allTranslations = [];
+  
+  for (let i = 0; i < q.length; i += BATCH_SIZE) {
+    const batch = q.slice(i, i + BATCH_SIZE);
+    const body = new URLSearchParams();
+    batch.forEach(t => body.append('q', t));
+    body.append('target', String(target));
+    if (source) body.append('source', String(source));
+    body.append('format', 'text');
 
-  const res = await fetch(`${ENDPOINT}?key=${API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Translate API failed (${res.status}): ${text}`);
+    const res = await fetch(`${ENDPOINT}?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Translate API failed (${res.status}): ${text}`);
+    }
+    
+    const data = await res.json();
+    const translations = (data?.data?.translations || []).map(t => t.translatedText || '');
+    allTranslations.push(...translations);
+    
+    // Add small delay between batches to avoid rate limiting
+    if (i + BATCH_SIZE < q.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
-  const data = await res.json();
-  const translations = (data?.data?.translations || []).map(t => t.translatedText || '');
-  return translations;
+  
+  return allTranslations;
 }
 
 async function translateWithPublicEndpoint({ q, target, source }) {
   const translations = [];
-  for (const text of q) {
-    const translated = await translateSinglePublic({
-      text,
-      target,
-      source: source || 'auto',
-    });
-    translations.push(translated);
+  // Add delay between requests to avoid rate limiting
+  for (let i = 0; i < q.length; i++) {
+    const text = q[i];
+    try {
+      const translated = await translateSinglePublic({
+        text,
+        target,
+        source: source || 'auto',
+      });
+      translations.push(translated);
+      
+      // Add delay between requests to avoid rate limiting (except for last item)
+      if (i < q.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    } catch (error) {
+      console.error(`[Translate] Failed to translate text ${i + 1}/${q.length}:`, error.message);
+      // Push original text if translation fails
+      translations.push(text);
+    }
   }
   return translations;
 }
