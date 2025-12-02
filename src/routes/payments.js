@@ -12,12 +12,14 @@ const router = express.Router();
  */
 router.post('/create-checkout-session', async (req, res) => {
   try {
-    const { email, name, birthDate, quizData } = req.body || {};
+    const { email, name, birthDate, quizData, currency, country } = req.body || {};
     
     console.log('[Payments] Checkout session request received:', {
       email,
       hasName: !!name,
       hasBirthDate: !!birthDate,
+      currency,
+      country,
       hasQuizData: !!quizData,
       quizDataKeys: quizData ? Object.keys(quizData) : [],
       hasAnswers: !!quizData?.answers,
@@ -82,6 +84,8 @@ router.post('/create-checkout-session', async (req, res) => {
       birthDate,
       successUrl,
       cancelUrl,
+      currency,
+      country,
     });
 
     return res.json({
