@@ -80,7 +80,7 @@ const CURRENCY_INFO = {
 
 const ZERO_DECIMAL_CURRENCIES = ['JPY', 'KRW', 'VND', 'IDR', 'CLP', 'COP'];
 
-const BASE_CURRENCY = 'GBP';
+const BASE_CURRENCY = 'USD';
 const BASE_TRIAL_PRICE = 1.0;
 const BASE_MONTHLY_PRICE = 29.99;
 const BASE_TOTAL_PRICE = 15.0;

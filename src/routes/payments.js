@@ -6,7 +6,7 @@ import { calculateAstrology } from '../services/astrology.js';
 const router = express.Router();
 
 /**
- * Create a Stripe Checkout Session for one-time trial payment (£1.00)
+ * Create a Stripe Checkout Session for one-time trial payment ($1.00)
  * After payment succeeds, subscription will be created via webhook
  * Also saves quiz data to database before payment
  */

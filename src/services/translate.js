@@ -1,18 +1,35 @@
 import fetch from 'node-fetch';
 
 const API_KEY = process.env.GOOGLE_TRANSLATE_API_KEY || '';
-const ENDPOINT = 'https://translation.googleapis.com/language/translate/v2';
+const GOOGLE_ENDPOINT = 'https://translation.googleapis.com/language/translate/v2';
+const LIBRE_ENDPOINT = process.env.LIBRE_TRANSLATE_URL || 'https://libretranslate.de/translate';
+const GOOGLE_PUBLIC_DELAY_MS = Number(process.env.GOOGLE_PUBLIC_TRANSLATE_DELAY_MS || 200);
+const LIBRE_DELAY_MS = Number(process.env.LIBRE_TRANSLATE_DELAY_MS || 300);
 
 export async function translateTexts({ texts, target, source }) {
   if (!target) throw new Error('target language is required');
   const q = Array.isArray(texts) ? texts : [String(texts ?? '')];
 
+  // Try official Google Cloud Translate first if API key is configured
   if (API_KEY) {
-    return translateWithGoogleCloud({ q, target, source });
+    try {
+      return await translateWithGoogleCloud({ q, target, source });
+    } catch (err) {
+      console.error('[Translate] Google Cloud translate failed, falling back:', err.message);
+    }
+  } else {
+    console.warn('[Translate] GOOGLE_TRANSLATE_API_KEY missing, using fallback endpoint(s)');
   }
 
-  console.warn('[Translate] GOOGLE_TRANSLATE_API_KEY missing, using fallback endpoint');
-  return translateWithPublicEndpoint({ q, target, source });
+  // Fall back to the unofficial Google endpoint
+  try {
+    return await translateWithPublicEndpoint({ q, target, source });
+  } catch (err) {
+    console.error('[Translate] Public Google translate failed, trying LibreTranslate:', err.message);
+  }
+
+  // Final fallback to LibreTranslate (self-hostable) to avoid white screens
+  return translateWithLibreTranslate({ q, target, source });
 }
 
 async function translateWithGoogleCloud({ q, target, source }) {
@@ -29,7 +46,7 @@ async function translateWithGoogleCloud({ q, target, source }) {
     if (source) body.append('source', String(source));
     body.append('format', 'text');
 
-    const res = await fetch(`${ENDPOINT}?key=${API_KEY}`, {
+    const res = await fetch(`${GOOGLE_ENDPOINT}?key=${API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
@@ -68,7 +85,7 @@ async function translateWithPublicEndpoint({ q, target, source }) {
       
       // Add delay between requests to avoid rate limiting (except for last item)
       if (i < q.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await delay(GOOGLE_PUBLIC_DELAY_MS);
       }
     } catch (error) {
       console.error(`[Translate] Failed to translate text ${i + 1}/${q.length}:`, error.message);
@@ -98,6 +115,46 @@ async function translateSinglePublic({ text, target, source }) {
   const data = await res.json();
   const segments = Array.isArray(data?.[0]) ? data[0] : [];
   return segments.map(seg => seg?.[0] || '').join('');
+}
+
+async function translateWithLibreTranslate({ q, target, source }) {
+  const translations = [];
+  for (let i = 0; i < q.length; i++) {
+    const text = q[i];
+    try {
+      const res = await fetch(LIBRE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: text,
+          source: source || 'auto',
+          target,
+          format: 'text',
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`LibreTranslate failed (${res.status}): ${errText}`);
+      }
+
+      const data = await res.json();
+      translations.push(data?.translatedText || text);
+    } catch (err) {
+      console.error('[Translate] LibreTranslate error:', err.message);
+      translations.push(text);
+    }
+
+    if (i < q.length - 1) {
+      await delay(LIBRE_DELAY_MS);
+    }
+  }
+
+  return translations;
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 

@@ -21,7 +21,7 @@ export function getStripe() {
 
 /**
  * Create a Stripe Checkout Session for the paid trial flow.
- * Phase 1: charge £1 immediately using STRIPE_TRIAL_PRICE_ID (recurring 7-day price)
+ * Phase 1: charge $1 immediately using STRIPE_TRIAL_PRICE_ID (recurring 7-day price)
  * Phase 2: webhook swaps to STRIPE_MONTHLY_PRICE_ID before the second billing cycle.
  */
 export async function createCheckoutSession({

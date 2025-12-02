@@ -312,7 +312,7 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
     
     case 'customer.subscription.trial_will_end':
       // Trial ending in 3 days - switch to monthly price BEFORE trial ends
-      // This ensures Day 8 charges £29.99 instead of another £1
+      // This ensures Day 8 charges $29.99 instead of another $1
       const trialEndingSubscription = event.data.object;
       console.log('[Webhook] Trial ending soon for subscription:', trialEndingSubscription.id);
       try {
@@ -369,7 +369,7 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
           );
 
           // Switch to monthly price IMMEDIATELY after first trial payment
-          // This ensures Day 7 charges £29.99 instead of another £1
+          // This ensures Day 7 charges $29.99 instead of another $1
           if (nextPriceId && invoiceHasTrialPrice && subscription.status === 'active') {
             const currentItem = subscription.items?.data?.[0];
             if (currentItem && currentItem.price?.id === trialPriceId) {
