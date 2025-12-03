@@ -810,6 +810,7 @@ The GuruLink Team
 © 2025 GuruLink, All rights reserved.`;
   
   try {
+    // Send confirmation to user
     await sendEmail({
       to,
       subject: 'Subscription Cancelled',
@@ -819,6 +820,31 @@ The GuruLink Team
     });
     if (EMAIL_LOGS) {
       console.log(`[Email] Cancellation confirmation sent to ${to}`);
+    }
+
+    // Best-effort notification to admin
+    try {
+      await sendEmail({
+        to: ADMIN_EMAIL,
+        subject: 'User Subscription Cancelled',
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111; max-width: 600px; margin: 0 auto;">
+            <h2 style="margin: 0 0 12px; font-size: 20px; color: #1A2336;">User subscription cancelled</h2>
+            <p style="margin: 0 0 8px;">A user has cancelled their subscription.</p>
+            <p style="margin: 0 0 4px;"><strong>Email:</strong> ${to}</p>
+            ${name ? `<p style="margin: 0 0 4px;"><strong>Name:</strong> ${name}</p>` : ''}
+            <p style="margin: 0 0 4px;"><strong>Access until:</strong> ${formattedDate}</p>
+            <p style="margin: 16px 0 0; font-size: 13px; color: #6B7280;">
+              This is an automated cancellation notification sent to the GuruLink admin.
+            </p>
+          </div>
+        `,
+        categories: ['admin', 'cancellation'],
+      });
+    } catch (adminError) {
+      if (EMAIL_LOGS) {
+        console.error('[Email] Failed to send admin cancellation notification:', adminError?.message || adminError);
+      }
     }
   } catch (error) {
     if (EMAIL_LOGS) {
