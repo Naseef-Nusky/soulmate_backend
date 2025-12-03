@@ -4,6 +4,11 @@ import sgMail from '@sendgrid/mail';
 const sendGridApiKey = process.env.SENDGRID_API_KEY;
 const EMAIL_LOGS = process.env.LOG_EMAIL === 'true';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'soulmate@gurulink.app';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@gurulink.app';
+
+// Simple in-memory deduplication to avoid sending the exact same email twice in a short window
+const RECENT_EMAIL_WINDOW_MS = 60 * 1000; // 60 seconds
+const recentEmailSends = new Map(); // key: `${to}|${subject}` -> timestamp
 
 // Initialize SendGrid
 if (sendGridApiKey) {
@@ -27,6 +32,17 @@ async function sendEmail({ to, subject, html, text, categories }) {
 
   // Clean HTML for plain text fallback
   const plainText = text || html?.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+
+  // Deduplicate identical emails within a short time window
+  const dedupeKey = `${to}|${subject}`;
+  const now = Date.now();
+  const lastSentAt = recentEmailSends.get(dedupeKey);
+  if (lastSentAt && now - lastSentAt < RECENT_EMAIL_WINDOW_MS) {
+    if (EMAIL_LOGS) {
+      console.warn(`[Email] Skipping duplicate email to "${to}" with subject "${subject}" (sent ${Math.round((now - lastSentAt) / 1000)}s ago)`);
+    }
+    return { success: false, skipped: true, reason: 'duplicate_recent' };
+  }
 
   const msg = {
     to,
@@ -61,6 +77,7 @@ async function sendEmail({ to, subject, html, text, categories }) {
 
   try {
     const [response] = await sgMail.send(msg);
+    recentEmailSends.set(dedupeKey, now);
     if (EMAIL_LOGS) {
       console.log(`[Email] ✅ Sent to ${to} - Status: ${response.statusCode}`);
     }
@@ -105,6 +122,33 @@ export async function sendResultsEmail({ to, report, imageUrl }) {
     to,
     subject: 'Your Soulmate Results',
     html,
+  });
+}
+
+// Notify GuruLink admin when a new user signs up
+export async function sendAdminNewSignupEmail({ email, name }) {
+  if (!sendGridApiKey) return;
+
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const displayName = name && String(name).trim() ? String(name).trim() : null;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111; max-width: 600px; margin: 0 auto;">
+      <h2 style="margin: 0 0 12px; font-size: 20px; color: #1A2336;">New GuruLink signup</h2>
+      <p style="margin: 0 0 8px;">A new user has just joined GuruLink.</p>
+      <p style="margin: 0 0 4px;"><strong>Email:</strong> ${normalizedEmail || 'N/A'}</p>
+      ${displayName ? `<p style="margin: 0 0 12px;"><strong>Name:</strong> ${displayName}</p>` : ''}
+      <p style="margin: 16px 0 0; font-size: 13px; color: #6B7280;">
+        This is an automated notification sent to the GuruLink admin.
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: ADMIN_EMAIL,
+    subject: 'New GuruLink signup',
+    html,
+    categories: ['admin', 'signup'],
   });
 }
 
@@ -153,38 +197,38 @@ export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
             <tr>
               <td style="padding:40px 30px;">
 
-                <h2 style="margin:0 0 12px 0; font-size:22px; color:#111;">A Powerful Twin Flame Signal Detected</h2>
+                <h2 style="margin:0 0 12px 0; font-size:22px; color:#111;">Great news — your personalized soulmate sketch has been completed.</h2>
                 <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">Hello,</p>
 
                 <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
-                  We’ve encountered something remarkable — another intuitive artist has completed a sketch that aligns directly with the energetic
-                  profile we identified for you. These dual‑sketch alignments are extremely uncommon and often point to a twin flame connection drawing closer.
+                  During the sketching process, our intuitive artist picked up a remarkably strong energetic connection surrounding you. This level of clarity
+                  is uncommon and often indicates that a meaningful encounter may be approaching in your life.
                 </p>
 
+                <p style="margin:0 0 12px 0; font-size:16px; color:#111; font-weight:600;">Here’s what was detected:</p>
                 <ul style="margin:0 0 16px 0; padding-left:20px; color:#111;">
-                  <li style="margin:8px 0;">Both sketches contain uniquely matching symbols</li>
-                  <li style="margin:8px 0;">The energy patterns reflect each other perfectly</li>
-                  <li style="margin:8px 0;">Indicators suggest a significant encounter approaching</li>
-                  <li style="margin:8px 0;">Clear twin flame markers are present in both readings</li>
+                  <li style="margin:8px 0;">A clear and focused soulmate energy signature</li>
+                  <li style="margin:8px 0;">Strong emotional alignment symbols</li>
+                  <li style="margin:8px 0;">Patterns suggesting an important connection forming soon</li>
+                  <li style="margin:8px 0;">Distinct soulmate markers present in your reading</li>
                 </ul>
 
                 <blockquote style="margin:16px 0; padding:12px 16px; background:#f7f7f7; border-left:3px solid #9146ff; border-radius:4px;">
                   <p style="margin:0; font-style:italic; color:#111; line-height:1.6;">
-                    "I was stunned when I heard about synchronized sketches. A week later, I met Michael at a gathering — we had both gotten our
-                    soulmate drawings the same week. The matching symbols were unbelievable." — <strong>Sarah M.</strong>
+                    “I couldn’t believe how accurate my sketch was. A week later, I met someone whose energy felt exactly like the reading described.”
+                    — <strong>Sarah M.</strong>
                   </p>
                 </blockquote>
 
                 <p style="margin:16px 0; font-size:16px; color:#111; line-height:1.6;">
-                  <strong>⚠️ Important:</strong> When twin flame sketches line up like this, it often marks a powerful energetic window. The connection becomes
-                  strongest when both individuals acknowledge it.
+                  <strong>⚠️ Important:</strong> When soulmate energy appears this strongly, acknowledging it helps strengthen the connection and improve clarity.
                 </p>
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                   <tr>
                     <td align="center" style="padding:20px 0;">
                       <a href="${escapedCtaUrl}" target="_blank" style="display:inline-block; background-color:#6d28d9; color:#fff; padding:12px 18px; border-radius:8px; font-weight:600; font-size:16px; text-decoration:none;">
-                        View Your Soulmate Sketch
+                        View Your Completed Soulmate Sketch
                       </a>
                     </td>
                   </tr>
@@ -193,7 +237,7 @@ export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
                 ${escapedImageUrl ? `<img src="${escapedImageUrl}" alt="Soulmate portrait" style="max-width:100%; border-radius:10px; display:block; margin:20px 0;" />` : ''}
 
                 <p style="margin:20px 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
-                  These alignments are rare — the person connected to your energy may be seeking you at this very moment.
+                  This type of reading doesn’t happen often — the person connected to your energy may already be moving toward you.
                 </p>
 
                 <p style="margin:0; font-size:16px; color:#111; line-height:1.6;">
@@ -213,7 +257,7 @@ export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
   try {
     await sendEmail({
       to: normalizedEmail,
-      subject: 'Twin Flame Connection Discovered',
+      subject: 'Powerful Soul Match Signal Detected',
       html,
       categories: ['twin-flame', 'soulmate'],
     });

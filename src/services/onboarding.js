@@ -5,7 +5,7 @@ import {
   generateMonthlyHoroscope,
   generateNatalChartReport,
 } from './astrology.js';
-import { sendLoginLinkEmail, sendSketchProcessingEmail } from './email.js';
+import { sendLoginLinkEmail, sendSketchProcessingEmail, sendAdminNewSignupEmail } from './email.js';
 import { getLatestResultByEmail, findRecentJobByEmail, createJob } from './db.js';
 
 const SKETCH_PROMISED_HOURS = Number(process.env.SKETCH_PROMISED_HOURS || 24);
@@ -112,6 +112,15 @@ export async function provisionSignupAndSendLogin({ email, name, birthDate, send
       });
     } catch (processingError) {
       console.error('[Onboarding] Failed to send sketch processing email:', processingError?.message || processingError);
+    }
+
+    try {
+      await sendAdminNewSignupEmail({
+        email: signup.email,
+        name: signup.name,
+      });
+    } catch (adminError) {
+      console.error('[Onboarding] Failed to send admin new-signup email:', adminError?.message || adminError);
     }
   } else if (!sendEmails) {
     console.log(`[Onboarding] Emails suppressed for ${cleanedEmail} (sendEmails=false)`);

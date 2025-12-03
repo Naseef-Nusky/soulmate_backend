@@ -21,7 +21,7 @@ export function getStripe() {
 
 /**
  * Create a Stripe Checkout Session for the paid trial flow.
- * Phase 1: charge $1 immediately using STRIPE_TRIAL_PRICE_ID (recurring 7-day price)
+ * Phase 1: charge £1 immediately using STRIPE_TRIAL_PRICE_ID (recurring 7-day price)
  * Phase 2: webhook swaps to STRIPE_MONTHLY_PRICE_ID before the second billing cycle.
  */
 export async function createCheckoutSession({
@@ -30,33 +30,10 @@ export async function createCheckoutSession({
   birthDate,
   successUrl,
   cancelUrl,
-  currency,
-  country,
 }) {
   const stripe = ensureStripe();
-  
-  // Basic adaptive pricing: map (currency, country) to Stripe price IDs.
-  // Fallback to default trial/monthly price IDs if a specific mapping is not found.
-  const DEFAULT_TRIAL_PRICE_ID = process.env.STRIPE_TRIAL_PRICE_ID;
-  const DEFAULT_MONTHLY_PRICE_ID = process.env.STRIPE_MONTHLY_PRICE_ID;
-
-  const REGION_PRICE_MAP = {
-    // Example mappings – replace env names with your own price IDs
-    // 'USD:US': {
-    //   trial: process.env.STRIPE_TRIAL_PRICE_ID_USD_US,
-    //   monthly: process.env.STRIPE_MONTHLY_PRICE_ID_USD_US,
-    // },
-    // 'INR:IN': {
-    //   trial: process.env.STRIPE_TRIAL_PRICE_ID_INR_IN,
-    //   monthly: process.env.STRIPE_MONTHLY_PRICE_ID_INR_IN,
-    // },
-  };
-
-  const key = currency && country ? `${currency}:${country}` : null;
-  const regionalPrices = key ? REGION_PRICE_MAP[key] : null;
-
-  const trialPriceId = regionalPrices?.trial || DEFAULT_TRIAL_PRICE_ID;
-  const monthlyPriceId = regionalPrices?.monthly || DEFAULT_MONTHLY_PRICE_ID;
+  const trialPriceId = process.env.STRIPE_TRIAL_PRICE_ID;
+  const monthlyPriceId = process.env.STRIPE_MONTHLY_PRICE_ID;
 
   if (!trialPriceId || !monthlyPriceId) {
     throw new Error('STRIPE_TRIAL_PRICE_ID and STRIPE_MONTHLY_PRICE_ID must be configured');
@@ -68,8 +45,6 @@ export async function createCheckoutSession({
     name: name || '',
     birthDate: birthDate || '',
     type: 'paid_trial',
-    currency: currency || '',
-    country: country || '',
   };
 
   const session = await stripe.checkout.sessions.create({
