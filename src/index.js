@@ -414,7 +414,30 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
       console.log('[Webhook] Payment failed for invoice:', event.data.object.id);
       // Payment failed - handle accordingly
       break;
-    
+
+    case 'customer.subscription.deleted': {
+      const deletedSub = event.data.object;
+      const emailFromMetadata = deletedSub.metadata?.email || '';
+      console.log('[Webhook] Subscription deleted:', deletedSub.id, 'for email:', emailFromMetadata);
+      if (emailFromMetadata) {
+        try {
+          const { findSignupByEmail, deactivateSignupByEmail } = await import('./services/auth.js');
+          const existing = await findSignupByEmail(emailFromMetadata);
+          if (existing && existing.is_active !== false) {
+            await deactivateSignupByEmail(emailFromMetadata);
+            console.log('[Webhook] ✅ Signup deactivated after subscription cancellation for:', emailFromMetadata);
+          } else {
+            console.log('[Webhook] Signup already inactive or not found for:', emailFromMetadata);
+          }
+        } catch (err) {
+          console.error('[Webhook] Failed to deactivate signup after subscription deletion:', err?.message || err);
+        }
+      } else {
+        console.warn('[Webhook] Subscription deleted event without email metadata');
+      }
+      break;
+    }
+
     default:
       console.log(`[Webhook] Unhandled event type: ${event.type}`);
   }

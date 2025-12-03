@@ -17,8 +17,11 @@ export async function createSignup({ email, name, birthDate }) {
      ON CONFLICT (email) DO UPDATE
        SET name = COALESCE(EXCLUDED.name, signups.name),
            birth_date = COALESCE(EXCLUDED.birth_date, signups.birth_date),
+           -- Re-activate account on new signup with same email
+           is_active = TRUE,
+           deactivated_at = NULL,
            updated_at = NOW()
-     RETURNING id, email, name, birth_date, created_at, updated_at` ,
+     RETURNING id, email, name, birth_date, is_active, deactivated_at, created_at, updated_at` ,
     [cleanedEmail, name?.trim() || null, birthDate || null]
   );
 
@@ -33,7 +36,7 @@ export async function findSignupByEmail(email) {
   if (!cleanedEmail) return null;
 
   const { rows } = await pool.query(
-    'SELECT id, email, name, birth_date, created_at, updated_at FROM signups WHERE email = $1',
+    'SELECT id, email, name, birth_date, is_active, deactivated_at, created_at, updated_at FROM signups WHERE email = $1',
     [cleanedEmail]
   );
 
@@ -57,7 +60,7 @@ export async function verifyToken(token) {
     }
 
     const user = await findSignupByEmail(email);
-    if (!user) return null;
+    if (!user || user.is_active === false) return null;
 
     // Return user object with id for compatibility
     return {
@@ -173,12 +176,34 @@ export async function getProfile(userId) {
   if (!pool) return null;
 
   const { rows } = await pool.query(
-    `SELECT id, email, name, gender, place_of_birth, birth_date, birth_time, relationship_status, created_at, updated_at 
+    `SELECT id, email, name, gender, place_of_birth, birth_date, birth_time, relationship_status, is_active, deactivated_at, created_at, updated_at 
      FROM signups WHERE id = $1`,
     [userId]
   );
 
   return rows[0] || null;
+}
+
+// Deactivate a signup account (e.g., after subscription fully ends)
+export async function deactivateSignupByEmail(email) {
+  const pool = getPool();
+  if (!pool) {
+    throw new Error('Database not available');
+  }
+
+  const cleanedEmail = email?.trim().toLowerCase();
+  if (!cleanedEmail) {
+    throw new Error('Email is required');
+  }
+
+  await pool.query(
+    `UPDATE signups 
+     SET is_active = FALSE,
+         deactivated_at = NOW(),
+         updated_at = NOW()
+     WHERE email = $1`,
+    [cleanedEmail]
+  );
 }
 
 
