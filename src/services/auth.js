@@ -11,18 +11,24 @@ export async function createSignup({ email, name, birthDate }) {
     throw new Error('Email is required');
   }
 
+  const isTestCustomer =
+    (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_test_') ||
+    process.env.NODE_ENV !== 'production';
+
   const result = await pool.query(
-    `INSERT INTO signups (email, name, birth_date, created_at, updated_at)
-     VALUES ($1, $2, $3, NOW(), NOW())
+    `INSERT INTO signups (email, name, birth_date, is_test, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, NOW(), NOW())
      ON CONFLICT (email) DO UPDATE
        SET name = COALESCE(EXCLUDED.name, signups.name),
            birth_date = COALESCE(EXCLUDED.birth_date, signups.birth_date),
            -- Re-activate account on new signup with same email
            is_active = TRUE,
+           -- Preserve existing is_test flag if already set, otherwise use new value
+           is_test = COALESCE(signups.is_test, EXCLUDED.is_test),
            deactivated_at = NULL,
            updated_at = NOW()
-     RETURNING id, email, name, birth_date, is_active, deactivated_at, created_at, updated_at` ,
-    [cleanedEmail, name?.trim() || null, birthDate || null]
+     RETURNING id, email, name, birth_date, is_active, is_test, deactivated_at, created_at, updated_at` ,
+    [cleanedEmail, name?.trim() || null, birthDate || null, isTestCustomer]
   );
 
   return result.rows[0];
@@ -36,7 +42,7 @@ export async function findSignupByEmail(email) {
   if (!cleanedEmail) return null;
 
   const { rows } = await pool.query(
-    'SELECT id, email, name, birth_date, is_active, deactivated_at, created_at, updated_at FROM signups WHERE email = $1',
+    'SELECT id, email, name, birth_date, is_active, is_test, deactivated_at, created_at, updated_at FROM signups WHERE email = $1',
     [cleanedEmail]
   );
 
@@ -176,7 +182,7 @@ export async function getProfile(userId) {
   if (!pool) return null;
 
   const { rows } = await pool.query(
-    `SELECT id, email, name, gender, place_of_birth, birth_date, birth_time, relationship_status, is_active, deactivated_at, created_at, updated_at 
+    `SELECT id, email, name, gender, place_of_birth, birth_date, birth_time, relationship_status, is_active, is_test, deactivated_at, created_at, updated_at 
      FROM signups WHERE id = $1`,
     [userId]
   );

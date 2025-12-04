@@ -87,6 +87,7 @@ export async function initDb() {
         birth_time TIME,
         relationship_status TEXT,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        is_test BOOLEAN NOT NULL DEFAULT FALSE,
         deactivated_at TIMESTAMP WITH TIME ZONE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -99,6 +100,7 @@ export async function initDb() {
     await pool.query(`ALTER TABLE signups ADD COLUMN IF NOT EXISTS birth_time TIME;`);
     await pool.query(`ALTER TABLE signups ADD COLUMN IF NOT EXISTS relationship_status TEXT;`);
     await pool.query(`ALTER TABLE signups ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;`);
+    await pool.query(`ALTER TABLE signups ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE;`);
     await pool.query(`ALTER TABLE signups ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP WITH TIME ZONE;`);
     
     // Create horoscopes table for caching generated horoscopes

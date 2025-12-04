@@ -19,6 +19,7 @@ import paymentsRouter from './routes/payments.js';
 import astrologyRouter from './routes/astrology.js';
 import translateRouter from './routes/translate.js';
 import notificationsRouter from './routes/notifications.js';
+import adminRouter from './routes/admin.js';
 import { initDb } from './services/db.js';
 import { startQueue } from './services/queue.js';
 import { provisionSignupAndSendLogin, ensurePostPaymentGeneration } from './services/onboarding.js';
@@ -466,6 +467,7 @@ app.use('/api/astrology', astrologyRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/translate', translateRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/admin', adminRouter);
 // Note: No subscription routes mounted
 
 server.listen(PORT, async () => {
