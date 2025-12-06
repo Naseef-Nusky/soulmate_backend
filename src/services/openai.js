@@ -15,7 +15,28 @@ function buildFallbackUrl({ gender }) {
 function portraitPromptFromAnswers(answers, astrology) {
   // Prioritize "Who are you interested in?" (genderConfirm) for image generation
   const gender = answers?.genderConfirm || answers?.gender || 'Person';
-  const ethnicity = answers?.ethnicity && answers.ethnicity !== 'No preference' ? answers.ethnicity : '';
+  
+  // Normalize ethnicity value for better AI understanding
+  let ethnicity = '';
+  const rawEthnicityValue = answers?.ethnicity ? String(answers.ethnicity).trim() : '';
+  
+  if (rawEthnicityValue && rawEthnicityValue !== 'No preference') {
+    // Normalize common variations - handle both "African / African-American" and "African/African-American"
+    if (rawEthnicityValue.includes('African') && (rawEthnicityValue.includes('American') || rawEthnicityValue.includes('African-American'))) {
+      ethnicity = 'African or African-American';
+    } else if (rawEthnicityValue.includes('Caucasian') || rawEthnicityValue.includes('White')) {
+      ethnicity = 'Caucasian or White';
+    } else if (rawEthnicityValue.includes('Hispanic') || rawEthnicityValue.includes('Latino')) {
+      ethnicity = 'Hispanic or Latino';
+    } else {
+      // Use the original value, but replace slashes (with or without spaces) with "or" for better AI understanding
+      ethnicity = rawEthnicityValue.replace(/\s*\/\s*/g, ' or ').trim();
+    }
+  } else if (rawEthnicityValue === 'No preference') {
+    // When "No preference" is selected, provide a generic instruction for diverse representation
+    ethnicity = 'diverse or any ethnic background';
+  }
+  
   const ageRange = answers?.ageRange || '';
   const keyTraits = Array.isArray(answers?.keyTraits) && answers.keyTraits.length ? answers.keyTraits.join(', ') : '';
   const element = astrology?.element || '';
@@ -59,7 +80,7 @@ ABSOLUTELY FORBIDDEN:
     "Follow the style directives strictly. Do not deviate from them.",
     'Based on ALL quiz answers and astrology data:',
     gender ? `Gender: ${gender}.` : '',
-    ethnicity ? `Ethnicity hint: ${ethnicity}.` : '',
+    ethnicity ? `Ethnicity: ${ethnicity}.` : '',
     ageRange ? `Apparent age: ${ageRange}.` : '',
     keyTraits ? `Vibe: ${keyTraits}.` : '',
     appearanceImportance ? `Appearance priority: ${appearanceImportance}.` : '',
@@ -78,6 +99,13 @@ ABSOLUTELY FORBIDDEN:
     moonSign ? `Moon sign: ${moonSign}.` : '',
     risingSign ? `Rising sign: ${risingSign}.` : '',
   ].filter(Boolean).join('\n');
+  
+  // Always log ethnicity processing for debugging
+  console.log('[Image] ===== Ethnicity Processing =====');
+  console.log('[Image] Raw ethnicity value from answers:', rawEthnicityValue || 'N/A');
+  console.log('[Image] Processed ethnicity for prompt:', ethnicity || 'N/A');
+  console.log('[Image] Original answer ethnicity:', answers?.ethnicity || 'N/A');
+  console.log('[Image] =================================');
   
   if (LOG_AI_VERBOSE) {
     // Debug: Log what quiz data is being used
@@ -129,7 +157,25 @@ ABSOLUTELY FORBIDDEN:
 }
 
 export async function generatePencilSketchFromAnswers(answers, astrology) {
+  console.log('[Image] ===== Starting Sketch Generation =====');
+  console.log('[Image] Total answer fields received:', answers ? Object.keys(answers).length : 0);
+  console.log('[Image] ===== ALL QUIZ ANSWERS RECEIVED =====');
+  if (answers) {
+    Object.entries(answers).forEach(([key, value]) => {
+      if (key !== 'email' && key !== 'birthDate' && key !== 'birthTime' && key !== 'birthCity' && key !== 'warningAcknowledged') {
+        const displayValue = Array.isArray(value) ? value.join(', ') : (value || 'N/A');
+        console.log(`[Image]   ${key}: ${displayValue}`);
+      }
+    });
+  }
+  console.log('[Image] Ethnicity (raw):', JSON.stringify(answers?.ethnicity || 'N/A'));
+  console.log('[Image] Ethnicity length:', answers?.ethnicity ? answers.ethnicity.length : 0);
+  console.log('[Image] Ethnicity includes spaces:', answers?.ethnicity ? answers.ethnicity.includes(' / ') : false);
+  console.log('[Image] =====================================');
+  
   let prompt = portraitPromptFromAnswers(answers, astrology);
+  
+  console.log('[Image] Prompt generated, length:', prompt.length, 'characters');
   
   // DALL-E 3 has a hard limit of 4000 characters - truncate if needed while preserving quiz hints
   const MAX_PROMPT_LENGTH = 3950; // 50 char buffer for safety

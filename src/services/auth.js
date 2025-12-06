@@ -212,6 +212,28 @@ export async function deactivateSignupByEmail(email) {
   );
 }
 
+// Activate a signup account (reactivate a previously deactivated account)
+export async function activateSignupByEmail(email) {
+  const pool = getPool();
+  if (!pool) {
+    throw new Error('Database not available');
+  }
+
+  const cleanedEmail = email?.trim().toLowerCase();
+  if (!cleanedEmail) {
+    throw new Error('Email is required');
+  }
+
+  await pool.query(
+    `UPDATE signups 
+     SET is_active = TRUE,
+         deactivated_at = NULL,
+         updated_at = NOW()
+     WHERE email = $1`,
+    [cleanedEmail]
+  );
+}
+
 
 
 

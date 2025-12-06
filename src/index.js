@@ -20,6 +20,8 @@ import astrologyRouter from './routes/astrology.js';
 import translateRouter from './routes/translate.js';
 import notificationsRouter from './routes/notifications.js';
 import adminRouter from './routes/admin.js';
+import adminAuthRouter from './routes/adminAuth.js';
+import crmNotificationsRouter from './routes/crmNotifications.js';
 import { initDb } from './services/db.js';
 import { startQueue } from './services/queue.js';
 import { provisionSignupAndSendLogin, ensurePostPaymentGeneration } from './services/onboarding.js';
@@ -427,8 +429,88 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
           if (existing && existing.is_active !== false) {
             await deactivateSignupByEmail(emailFromMetadata);
             console.log('[Webhook] ✅ Signup deactivated after subscription cancellation for:', emailFromMetadata);
+            
+            // Send deactivation email to customer
+            try {
+              const { sendAccountDeactivationEmail, sendEmail } = await import('./services/email.js');
+              const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@gurulink.app';
+              
+              await sendAccountDeactivationEmail({
+                to: emailFromMetadata,
+                name: existing.name,
+              });
+              
+              // Send notification to admin
+              await sendEmail({
+                to: ADMIN_EMAIL,
+                subject: 'Account Deactivated (Subscription Ended)',
+                html: `
+                  <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111; max-width: 600px; margin: 0 auto;">
+                    <h2 style="margin: 0 0 12px; font-size: 20px; color: #1A2336;">Account Deactivated</h2>
+                    <p style="margin: 0 0 8px;">An account has been automatically deactivated after subscription period ended.</p>
+                    <p style="margin: 0 0 4px;"><strong>Email:</strong> ${emailFromMetadata}</p>
+                    ${existing.name ? `<p style="margin: 0 0 4px;"><strong>Name:</strong> ${existing.name}</p>` : ''}
+                    <p style="margin: 16px 0 0; font-size: 13px; color: #6B7280;">
+                      This is an automated notification sent to the GuruLink admin.
+                    </p>
+                  </div>
+                `,
+                categories: ['admin', 'deactivation'],
+              });
+            } catch (emailError) {
+              console.error('[Webhook] Failed to send deactivation emails:', emailError?.message || emailError);
+            }
           } else {
             console.log('[Webhook] Signup already inactive or not found for:', emailFromMetadata);
+          }
+
+          // Create CRM notification for subscription cancellation
+          try {
+            const { createNotification } = await import('./services/notifications.js');
+            const periodEndDate = deletedSub.current_period_end
+              ? new Date(deletedSub.current_period_end * 1000).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })
+              : 'the end of billing cycle';
+            await createNotification({
+              type: 'subscription_cancelled',
+              title: 'Subscription Cancelled',
+              message: existing?.name
+                ? `${existing.name} (${emailFromMetadata}) has cancelled their subscription`
+                : `${emailFromMetadata} has cancelled their subscription`,
+              data: {
+                email: emailFromMetadata,
+                name: existing?.name || null,
+                periodEndDate,
+                cancelledBy: 'customer',
+              },
+            });
+            console.log('[Webhook] ✅ CRM notification created for subscription cancellation');
+          } catch (notifError) {
+            console.error('[Webhook] Failed to create CRM notification:', notifError?.message || notifError);
+          }
+
+          // Create CRM notification for account deactivation (after subscription ends)
+          try {
+            const { createNotification } = await import('./services/notifications.js');
+            await createNotification({
+              type: 'account_deactivated',
+              title: 'Account Deactivated (Subscription Ended)',
+              message: existing?.name
+                ? `Account automatically deactivated: ${existing.name} (${emailFromMetadata}) - subscription period ended`
+                : `Account automatically deactivated: ${emailFromMetadata} - subscription period ended`,
+              data: {
+                email: emailFromMetadata,
+                name: existing?.name || null,
+                deactivatedBy: 'system',
+                reason: 'subscription_ended',
+              },
+            });
+            console.log('[Webhook] ✅ CRM notification created for account deactivation');
+          } catch (notifError) {
+            console.error('[Webhook] Failed to create CRM notification for deactivation:', notifError?.message || notifError);
           }
         } catch (err) {
           console.error('[Webhook] Failed to deactivate signup after subscription deletion:', err?.message || err);
@@ -467,6 +549,8 @@ app.use('/api/astrology', astrologyRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/translate', translateRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/admin/auth', adminAuthRouter);
+app.use('/api/admin/notifications', crmNotificationsRouter);
 app.use('/api/admin', adminRouter);
 // Note: No subscription routes mounted
 

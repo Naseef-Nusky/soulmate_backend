@@ -114,13 +114,38 @@ router.post('/register', async (req, res) => {
       }
       
       if (answers && Object.keys(answers).length > 0) {
+        // Ensure we preserve ALL fields from quizData, not just answers
+        // Merge quizData fields into answers to ensure nothing is lost
+        // IMPORTANT: Preserve exact string values, especially ethnicity with spaces
+        const mergedAnswers = {
+          ...answers,
+          // Include any additional fields from quizData that might be quiz answers
+          ...Object.fromEntries(
+            Object.entries(quizData).filter(([key]) => 
+              key !== 'answers' && 
+              key !== 'birthDetails' && 
+              key !== 'email' && 
+              key !== 'timestamp'
+            )
+          ),
+        };
+        
+        // Ensure ethnicity value is preserved exactly as received (with spaces)
+        if (answers.ethnicity) {
+          mergedAnswers.ethnicity = String(answers.ethnicity); // Preserve exact value
+        }
+        
         finalQuizData = {
-          answers,
+          answers: mergedAnswers,
           birthDetails,
           email: cleanedEmail,
           ...quizData,
         };
-        console.log(`[Auth] ✅ Quiz data extracted from request: ${Object.keys(answers).length} answer fields`);
+        console.log(`[Auth] ✅ Quiz data extracted from request: ${Object.keys(mergedAnswers).length} answer fields`);
+        console.log(`[Auth] Extracted answer keys:`, Object.keys(mergedAnswers));
+        console.log(`[Auth] Ethnicity value:`, mergedAnswers.ethnicity || 'N/A');
+        console.log(`[Auth] Ethnicity length:`, mergedAnswers.ethnicity ? mergedAnswers.ethnicity.length : 0);
+        console.log(`[Auth] Ethnicity includes spaces:`, mergedAnswers.ethnicity ? mergedAnswers.ethnicity.includes(' / ') : false);
       } else {
         console.warn(`[Auth] ⚠️ Quiz data provided but no answers found. Structure:`, Object.keys(quizData || {}));
       }
@@ -149,6 +174,7 @@ router.post('/register', async (req, res) => {
               ...stepData,
             };
             console.log(`[Auth] ✅ Found quiz data in database for ${cleanedEmail}: ${Object.keys(answers).length} answer fields`);
+            console.log(`[Auth] Database answer keys:`, Object.keys(answers));
           } else {
             console.warn(`[Auth] ⚠️ Found result in database but no answers:`, latestResult.id);
           }
@@ -225,6 +251,21 @@ router.post('/register', async (req, res) => {
           
           // Generate sketch immediately
           console.log(`[Auth] Generating sketch for ${cleanedEmail}...`);
+          console.log(`[Auth] ===== ALL QUIZ ANSWERS =====`);
+          console.log(`[Auth] Total answer fields: ${Object.keys(finalQuizData.answers).length}`);
+          console.log(`[Auth] Answer keys:`, Object.keys(finalQuizData.answers));
+          console.log(`[Auth] ===== COMPLETE QUIZ ANSWERS =====`);
+          Object.entries(finalQuizData.answers).forEach(([key, value]) => {
+            if (key !== 'email' && key !== 'birthDate' && key !== 'birthTime' && key !== 'birthCity') {
+              const displayValue = Array.isArray(value) ? value.join(', ') : (value || 'N/A');
+              console.log(`[Auth]   ${key}: ${displayValue}`);
+            }
+          });
+          console.log(`[Auth] Ethnicity (raw):`, JSON.stringify(finalQuizData.answers.ethnicity || 'N/A'));
+          console.log(`[Auth] Ethnicity length:`, finalQuizData.answers.ethnicity ? finalQuizData.answers.ethnicity.length : 0);
+          console.log(`[Auth] Ethnicity includes spaces:`, finalQuizData.answers.ethnicity ? finalQuizData.answers.ethnicity.includes(' / ') : false);
+          console.log(`[Auth] ========================================================`);
+          
           let image;
           try {
             image = await generatePencilSketchFromAnswers(finalQuizData.answers, astrology);

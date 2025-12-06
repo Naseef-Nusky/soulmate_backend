@@ -103,6 +103,33 @@ export async function initDb() {
     await pool.query(`ALTER TABLE signups ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE;`);
     await pool.query(`ALTER TABLE signups ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP WITH TIME ZONE;`);
     
+    // Create admin_users table for CRM authentication
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+    
+    // Create crm_notifications table for CRM notifications
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_notifications (
+        id SERIAL PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        data JSONB,
+        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_crm_notifications_read ON crm_notifications(is_read, created_at DESC);`);
+    
     // Create horoscopes table for caching generated horoscopes
     await pool.query(`
       CREATE TABLE IF NOT EXISTS horoscopes (

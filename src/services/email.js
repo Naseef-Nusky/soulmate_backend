@@ -23,7 +23,7 @@ if (sendGridApiKey) {
 }
 
 // Helper function to send email via SendGrid
-async function sendEmail({ to, subject, html, text, categories }) {
+export async function sendEmail({ to, subject, html, text, categories }) {
   if (!sendGridApiKey) {
     const error = new Error('SendGrid API key not configured. Set SENDGRID_API_KEY in .env');
     console.error('[Email]', error.message);
@@ -150,6 +150,21 @@ export async function sendAdminNewSignupEmail({ email, name }) {
     html,
     categories: ['admin', 'signup'],
   });
+
+  // Create CRM notification
+  try {
+    const { createNotification } = await import('./notifications.js');
+    await createNotification({
+      type: 'new_signup',
+      title: 'New User Signup',
+      message: displayName 
+        ? `${displayName} (${normalizedEmail}) has signed up`
+        : `${normalizedEmail} has signed up`,
+      data: { email: normalizedEmail, name: displayName },
+    });
+  } catch (notifError) {
+    console.error('[Email] Failed to create CRM notification for new signup:', notifError?.message || notifError);
+  }
 }
 
 export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
@@ -841,6 +856,21 @@ The GuruLink Team
         `,
         categories: ['admin', 'cancellation'],
       });
+
+      // Create CRM notification
+      try {
+        const { createNotification } = await import('./notifications.js');
+        await createNotification({
+          type: 'subscription_cancelled',
+          title: 'Subscription Cancelled',
+          message: name
+            ? `${name} (${to}) has cancelled their subscription`
+            : `${to} has cancelled their subscription`,
+          data: { email: to, name, periodEndDate: formattedDate },
+        });
+      } catch (notifError) {
+        console.error('[Email] Failed to create CRM notification for cancellation:', notifError?.message || notifError);
+      }
     } catch (adminError) {
       if (EMAIL_LOGS) {
         console.error('[Email] Failed to send admin cancellation notification:', adminError?.message || adminError);
@@ -849,6 +879,265 @@ The GuruLink Team
   } catch (error) {
     if (EMAIL_LOGS) {
       console.error(`[Email] Cancellation confirmation send failed to "${to}":`, error?.message || error);
+    }
+    throw error;
+  }
+}
+
+// Send account deactivation email to customer
+export async function sendAccountDeactivationEmail({ to, name }) {
+  if (!sendGridApiKey) return;
+
+  const appUrl = process.env.APP_URL || 'https://gurulink.app';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; max-width: 600px;">
+              <tr>
+                <td style="padding: 40px 30px;">
+                  <p style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #1A2336;">Account Deactivated</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111;">Hi there${name ? ` ${name}` : ''},</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111; line-height: 1.6;">Your GuruLink account has been deactivated. You will no longer be able to access your account or use the services.</p>
+                  
+                  <div style="background-color: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <p style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #1A2336;">What this means:</p>
+                    <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                      <li>You cannot log in to your account</li>
+                      <li>Your subscription access has ended</li>
+                      <li>Your account data is retained</li>
+                    </ul>
+                  </div>
+                  
+                  <p style="margin: 20px 0 0 0; font-size: 16px; color: #111; line-height: 1.6;">If you believe this is an error or would like to reactivate your account, please contact our support team.</p>
+                  
+                  <div style="margin: 30px 0; text-align: center;">
+                    <a href="${appUrl}/support" style="display: inline-block; padding: 12px 24px; background-color: #1A2336; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Contact Support</a>
+                  </div>
+                  
+                  <p style="margin: 30px 0 0 0; font-size: 14px; color: #666; line-height: 1.6;">If you have any questions, please don't hesitate to reach out to us.</p>
+                  
+                  <p style="margin: 20px 0 0 0; font-size: 14px; color: #666;">Best regards,<br>The GuruLink Team</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const text = `Account Deactivated
+
+Hi there${name ? ` ${name}` : ''},
+
+Your GuruLink account has been deactivated. You will no longer be able to access your account or use the services.
+
+What this means:
+- You cannot log in to your account
+- Your subscription access has ended
+- Your account data is retained
+
+If you believe this is an error or would like to reactivate your account, please contact our support team.
+
+${appUrl}/support
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Best regards,
+The GuruLink Team
+
+© 2025 GuruLink, All rights reserved.`;
+
+  try {
+    await sendEmail({
+      to,
+      subject: 'Your GuruLink Account Has Been Deactivated',
+      html,
+      text,
+      categories: ['account', 'deactivation'],
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] Account deactivation email sent to ${to}`);
+    }
+  } catch (error) {
+    if (EMAIL_LOGS) {
+      console.error(`[Email] Account deactivation email send failed to "${to}":`, error?.message || error);
+    }
+    throw error;
+  }
+}
+
+// Send subscription reactivation email to customer
+export async function sendSubscriptionReactivationEmail({ to, name }) {
+  if (!sendGridApiKey) return;
+
+  const appUrl = process.env.APP_URL || 'https://gurulink.app';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; max-width: 600px;">
+              <tr>
+                <td style="padding: 40px 30px;">
+                  <p style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #1A2336;">Subscription Reactivated</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111;">Hi there${name ? ` ${name}` : ''},</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111; line-height: 1.6;">Great news! Your subscription has been reactivated and you now have full access to all GuruLink features.</p>
+                  
+                  <div style="background-color: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <p style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #1A2336;">Your subscription is now active</p>
+                    <p style="margin: 0; font-size: 14px; color: #166534; line-height: 1.6;">You can now access all features and continue enjoying your GuruLink experience.</p>
+                  </div>
+                  
+                  <div style="margin: 30px 0; text-align: center;">
+                    <a href="${appUrl}/login" style="display: inline-block; padding: 12px 24px; background-color: #1A2336; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Access Your Account</a>
+                  </div>
+                  
+                  <p style="margin: 20px 0 0 0; font-size: 14px; color: #666; line-height: 1.6;">Thank you for being a valued member of GuruLink!</p>
+                  
+                  <p style="margin: 20px 0 0 0; font-size: 14px; color: #666;">Best regards,<br>The GuruLink Team</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const text = `Subscription Reactivated
+
+Hi there${name ? ` ${name}` : ''},
+
+Great news! Your subscription has been reactivated and you now have full access to all GuruLink features.
+
+Your subscription is now active
+You can now access all features and continue enjoying your GuruLink experience.
+
+${appUrl}/login
+
+Thank you for being a valued member of GuruLink!
+
+Best regards,
+The GuruLink Team
+
+© 2025 GuruLink, All rights reserved.`;
+
+  try {
+    await sendEmail({
+      to,
+      subject: 'Your Subscription Has Been Reactivated',
+      html,
+      text,
+      categories: ['subscription', 'reactivation'],
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] Subscription reactivation email sent to ${to}`);
+    }
+  } catch (error) {
+    if (EMAIL_LOGS) {
+      console.error(`[Email] Subscription reactivation email send failed to "${to}":`, error?.message || error);
+    }
+    throw error;
+  }
+}
+
+// Send account activation email to customer
+export async function sendAccountActivationEmail({ to, name }) {
+  if (!sendGridApiKey) return;
+
+  const appUrl = process.env.APP_URL || 'https://gurulink.app';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; max-width: 600px;">
+              <tr>
+                <td style="padding: 40px 30px;">
+                  <p style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #1A2336;">Account Activated</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111;">Hi there${name ? ` ${name}` : ''},</p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #111; line-height: 1.6;">Great news! Your GuruLink account has been activated. You can now log in and access all features.</p>
+                  
+                  <div style="background-color: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <p style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #1A2336;">Your account is now active</p>
+                    <p style="margin: 0; font-size: 14px; color: #166534; line-height: 1.6;">You can now log in and enjoy all the features GuruLink has to offer.</p>
+                  </div>
+                  
+                  <div style="margin: 30px 0; text-align: center;">
+                    <a href="${appUrl}/login" style="display: inline-block; padding: 12px 24px; background-color: #1A2336; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Log In to Your Account</a>
+                  </div>
+                  
+                  <p style="margin: 20px 0 0 0; font-size: 14px; color: #666; line-height: 1.6;">If you have any questions, please don't hesitate to reach out to us.</p>
+                  
+                  <p style="margin: 20px 0 0 0; font-size: 14px; color: #666;">Best regards,<br>The GuruLink Team</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const text = `Account Activated
+
+Hi there${name ? ` ${name}` : ''},
+
+Great news! Your GuruLink account has been activated. You can now log in and access all features.
+
+Your account is now active
+You can now log in and enjoy all the features GuruLink has to offer.
+
+${appUrl}/login
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Best regards,
+The GuruLink Team
+
+© 2025 GuruLink, All rights reserved.`;
+
+  try {
+    await sendEmail({
+      to,
+      subject: 'Your GuruLink Account Has Been Activated',
+      html,
+      text,
+      categories: ['account', 'activation'],
+    });
+    if (EMAIL_LOGS) {
+      console.log(`[Email] Account activation email sent to ${to}`);
+    }
+  } catch (error) {
+    if (EMAIL_LOGS) {
+      console.error(`[Email] Account activation email send failed to "${to}":`, error?.message || error);
     }
     throw error;
   }
