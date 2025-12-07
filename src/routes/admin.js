@@ -6,7 +6,7 @@ import { sendCancellationConfirmationEmail, sendAccountDeactivationEmail, sendAc
 import { createNotification } from '../services/notifications.js';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@gurulink.app';
-import { requireAdminAuth } from '../middleware/adminAuth.js';
+import { requireAdminAuth, requireSuperAdmin, requireRole } from '../middleware/adminAuth.js';
 
 const router = express.Router();
 
@@ -35,8 +35,8 @@ router.get('/customers', async (_req, res) => {
   }
 });
 
-// Admin: deactivate account immediately (without touching Stripe subscription)
-router.post('/customers/deactivate', async (req, res) => {
+// Admin: deactivate account immediately (without touching Stripe subscription) - SUPER ADMIN AND ADMIN ONLY
+router.post('/customers/deactivate', requireRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const { email } = req.body || {};
     if (!email) {
@@ -109,8 +109,8 @@ router.post('/customers/deactivate', async (req, res) => {
   }
 });
 
-// Admin: activate account (reactivate a previously deactivated account)
-router.post('/customers/activate', async (req, res) => {
+// Admin: activate account (reactivate a previously deactivated account) - SUPER ADMIN AND ADMIN ONLY
+router.post('/customers/activate', requireRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const { email } = req.body || {};
     if (!email) {
@@ -164,8 +164,8 @@ router.post('/customers/activate', async (req, res) => {
   }
 });
 
-// Admin: restore/reactivate a cancelled subscription for a user by email
-router.post('/customers/restore-subscription', async (req, res) => {
+// Admin: restore/reactivate a cancelled subscription for a user by email - SUPER ADMIN AND ADMIN ONLY
+router.post('/customers/restore-subscription', requireRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const { email } = req.body || {};
 
@@ -309,8 +309,8 @@ router.post('/customers/restore-subscription', async (req, res) => {
   }
 });
 
-// Admin: cancel active subscription (mark cancel_at_period_end) for a user by email
-router.post('/customers/cancel-subscription', async (req, res) => {
+// Admin: cancel active subscription (mark cancel_at_period_end) for a user by email - SUPER ADMIN AND ADMIN ONLY
+router.post('/customers/cancel-subscription', requireRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const { email } = req.body || {};
 

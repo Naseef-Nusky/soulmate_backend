@@ -35,4 +35,18 @@ export function requireRole(allowedRoles) {
   };
 }
 
+// Middleware to require super_admin role
+export function requireSuperAdmin(req, res, next) {
+  return requireRole(['super_admin'])(req, res, next);
+}
+
+// Helper to check if user is super admin
+export async function isSuperAdmin(req) {
+  if (!req.admin) {
+    return false;
+  }
+  const admin = await getAdminUserById(req.admin.id);
+  return admin && admin.role === 'super_admin';
+}
+
 

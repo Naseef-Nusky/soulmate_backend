@@ -6,8 +6,12 @@ import {
   getAdminUserById,
   createAdminUser,
   listAdminUsers,
+  deleteAdminUser,
+  deactivateAdminUser,
+  activateAdminUser,
 } from '../services/adminAuth.js';
-import { requireAdminAuth } from '../middleware/adminAuth.js';
+import { requireAdminAuth, requireSuperAdmin } from '../middleware/adminAuth.js';
+import { getPool } from '../services/db.js';
 
 const router = express.Router();
 
@@ -75,8 +79,8 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// List all admin users (protected)
-router.get('/users', requireAdminAuth, async (req, res) => {
+// List all admin users (protected) - SUPER ADMIN ONLY
+router.get('/users', requireAdminAuth, requireSuperAdmin, async (req, res) => {
   try {
     const users = await listAdminUsers();
     return res.json({ ok: true, users });
@@ -86,8 +90,8 @@ router.get('/users', requireAdminAuth, async (req, res) => {
   }
 });
 
-// Create new admin user (protected)
-router.post('/users', requireAdminAuth, async (req, res) => {
+// Create new admin user (protected) - SUPER ADMIN ONLY
+router.post('/users', requireAdminAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { username, password, role = 'admin' } = req.body || {};
 
@@ -103,6 +107,11 @@ router.post('/users', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
+    // Super admin cannot be created through the API - it's a system-only role
+    if (role === 'super_admin') {
+      return res.status(403).json({ error: 'Super admin role cannot be created. It is a system-only role.' });
+    }
+
     await createAdminUser(username, password, role);
 
     return res.json({
@@ -115,6 +124,136 @@ router.post('/users', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ error: 'Username already exists' });
     }
     return res.status(500).json({ error: 'Failed to create admin user' });
+  }
+});
+
+// Delete admin user (protected) - SUPER ADMIN ONLY
+router.delete('/users/:userId', requireAdminAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Prevent super admin from deleting themselves
+    if (userId === req.admin.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+
+    // Get the user to check if they exist
+    const userToDelete = await getAdminUserById(userId);
+    if (!userToDelete) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent deleting super admin users (only one should exist)
+    if (userToDelete.role === 'super_admin') {
+      return res.status(403).json({ error: 'Super admin users cannot be deleted' });
+    }
+
+    await deleteAdminUser(userId);
+
+    return res.json({
+      ok: true,
+      message: `Admin user "${userToDelete.username}" deleted successfully`,
+    });
+  } catch (error) {
+    console.error('[AdminAuth] Failed to delete admin user:', error);
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(500).json({ error: 'Failed to delete admin user' });
+  }
+});
+
+// Deactivate admin user (protected) - SUPER ADMIN ONLY
+router.post('/users/:userId/deactivate', requireAdminAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Prevent super admin from deactivating themselves
+    if (userId === req.admin.id) {
+      return res.status(400).json({ error: 'You cannot deactivate your own account' });
+    }
+
+    // Get the user to check if they exist and check role
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT id, username, role, is_active FROM admin_users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userToDeactivate = rows[0];
+    
+    // Prevent deactivating super admin users (they must always be active)
+    if (userToDeactivate.role === 'super_admin') {
+      return res.status(403).json({ error: 'Super admin users cannot be deactivated' });
+    }
+    
+    if (userToDeactivate.is_active === false) {
+      return res.status(400).json({ error: 'User is already deactivated' });
+    }
+
+    const user = await deactivateAdminUser(userId);
+
+    return res.json({
+      ok: true,
+      message: `Admin user "${user.username}" deactivated successfully`,
+    });
+  } catch (error) {
+    console.error('[AdminAuth] Failed to deactivate admin user:', error);
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(500).json({ error: 'Failed to deactivate admin user' });
+  }
+});
+
+// Activate admin user (protected) - SUPER ADMIN ONLY
+router.post('/users/:userId/activate', requireAdminAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Check if user exists (including inactive ones)
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT id, username, role, is_active FROM admin_users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (rows[0].is_active === true) {
+      return res.status(400).json({ error: 'User is already active' });
+    }
+
+    const user = await activateAdminUser(userId);
+
+    return res.json({
+      ok: true,
+      message: `Admin user "${user.username}" activated successfully`,
+    });
+  } catch (error) {
+    console.error('[AdminAuth] Failed to activate admin user:', error);
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(500).json({ error: 'Failed to activate admin user' });
   }
 });
 

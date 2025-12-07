@@ -7,7 +7,8 @@ function hashPassword(password) {
 }
 
 // Create admin user (run once to set up initial admin)
-export async function createAdminUser(username, password, role = 'admin') {
+// Note: Default is 'super_admin' for script usage, but API should not allow super_admin creation
+export async function createAdminUser(username, password, role = 'super_admin') {
   const pool = getPool();
   if (!pool) {
     throw new Error('Database not available');
@@ -85,6 +86,87 @@ export async function listAdminUsers() {
   );
 
   return rows;
+}
+
+// Delete admin user by ID
+export async function deleteAdminUser(userId) {
+  const pool = getPool();
+  if (!pool) {
+    throw new Error('Database not available');
+  }
+
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM admin_users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (rowCount === 0) {
+      throw new Error('User not found');
+    }
+    
+    console.log(`[AdminAuth] Admin user with ID "${userId}" deleted successfully`);
+    return true;
+  } catch (error) {
+    console.error('[AdminAuth] Failed to delete admin user:', error);
+    throw error;
+  }
+}
+
+// Deactivate admin user by ID
+export async function deactivateAdminUser(userId) {
+  const pool = getPool();
+  if (!pool) {
+    throw new Error('Database not available');
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE admin_users 
+       SET is_active = FALSE, updated_at = NOW() 
+       WHERE id = $1 
+       RETURNING id, username, role`,
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    console.log(`[AdminAuth] Admin user "${rows[0].username}" (ID: ${userId}) deactivated successfully`);
+    return rows[0];
+  } catch (error) {
+    console.error('[AdminAuth] Failed to deactivate admin user:', error);
+    throw error;
+  }
+}
+
+// Activate admin user by ID
+export async function activateAdminUser(userId) {
+  const pool = getPool();
+  if (!pool) {
+    throw new Error('Database not available');
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE admin_users 
+       SET is_active = TRUE, updated_at = NOW() 
+       WHERE id = $1 
+       RETURNING id, username, role`,
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      throw new Error('User not found');
+    }
+    
+    console.log(`[AdminAuth] Admin user "${rows[0].username}" (ID: ${userId}) activated successfully`);
+    return rows[0];
+  } catch (error) {
+    console.error('[AdminAuth] Failed to activate admin user:', error);
+    throw error;
+  }
 }
 
 // Generate a simple token (in production, use JWT)

@@ -10,11 +10,11 @@ import { createAdminUser } from '../src/services/adminAuth.js';
 async function main() {
   const username = process.argv[2];
   const password = process.argv[3];
-  const role = process.argv[4] || 'admin';
+  const role = process.argv[4] || 'super_admin';
 
   if (!username || !password) {
     console.error('Usage: node scripts/createAdmin.js <username> <password> [role]');
-    console.error('Example: node scripts/createAdmin.js admin mypassword123 admin');
+    console.error('Example: node scripts/createAdmin.js admin mypassword123 super_admin');
     process.exit(1);
   }
 
