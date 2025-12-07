@@ -26,6 +26,10 @@ GOOGLE_TRANSLATE_API_KEY=your-google-cloud-translation-api-key
 
 DATABASE_URL=postgres://user:password@localhost:5432/soulmate
 APP_URL=http://localhost:5173
+# CORS: Comma-separated list of allowed origins (for CRM and frontend)
+# Example: ALLOWED_ORIGINS=http://localhost:5173,https://crm.gurulink.app,https://your-crm-domain.com
+# If not set, defaults to APP_URL or '*' (allows all origins)
+ALLOWED_ORIGINS=
 MOCK_MODE=false
 FALLBACK_IMAGE_URL_TEMPLATE=https://api.dicebear.com/7.x/{style}/png?seed={seed}&size=512&radius=40&backgroundType=gradientLinear
 

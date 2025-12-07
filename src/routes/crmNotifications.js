@@ -69,3 +69,4 @@ router.post('/mark-all-read', async (req, res) => {
 
 export default router;
 
+
