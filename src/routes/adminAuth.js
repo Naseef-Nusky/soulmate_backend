@@ -29,15 +29,24 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Get full admin details including created_at
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT id, username, role, created_at, updated_at FROM admin_users WHERE id = $1`,
+      [admin.id]
+    );
+    const fullAdmin = rows[0] || admin;
+
     const token = generateAdminToken(admin);
 
     return res.json({
       ok: true,
       token,
       admin: {
-        id: admin.id,
-        username: admin.username,
-        role: admin.role,
+        id: fullAdmin.id,
+        username: fullAdmin.username,
+        role: fullAdmin.role,
+        created_at: fullAdmin.created_at,
       },
     });
   } catch (error) {
