@@ -14,7 +14,7 @@ async function main() {
 
   if (!username || !password) {
     console.error('Usage: node scripts/createAdmin.js <username> <password> [role]');
-    console.error('Example: node scripts/createAdmin.js admin mypassword123 super_admin');
+    console.error('Example: node scripts/createAdmin.js "superadmin" mypassword123 super_admin');
     process.exit(1);
   }
 

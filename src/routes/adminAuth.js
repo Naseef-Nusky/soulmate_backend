@@ -65,12 +65,21 @@ router.get('/me', async (req, res) => {
       return res.status(401).json({ error: 'Admin user not found' });
     }
 
+    // Get full admin details including created_at
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT id, username, role, created_at, updated_at FROM admin_users WHERE id = $1`,
+      [admin.id]
+    );
+    const fullAdmin = rows[0] || admin;
+
     return res.json({
       ok: true,
       admin: {
-        id: admin.id,
-        username: admin.username,
-        role: admin.role,
+        id: fullAdmin.id,
+        username: fullAdmin.username,
+        role: fullAdmin.role,
+        created_at: fullAdmin.created_at,
       },
     });
   } catch (error) {
@@ -120,8 +129,8 @@ router.post('/users', requireAdminAuth, requireSuperAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('[AdminAuth] Failed to create admin user:', error);
-    if (error.message.includes('unique constraint') || error.message.includes('duplicate')) {
-      return res.status(400).json({ error: 'Username already exists' });
+    if (error.message.includes('Username already exists') || error.message.includes('unique constraint') || error.message.includes('duplicate')) {
+      return res.status(400).json({ error: 'Username already exists. Please choose a different username.' });
     }
     return res.status(500).json({ error: 'Failed to create admin user' });
   }

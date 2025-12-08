@@ -17,17 +17,25 @@ export async function createAdminUser(username, password, role = 'super_admin') 
   const hashedPassword = hashPassword(password);
 
   try {
-    await pool.query(
+    // Check if username already exists
+    const checkResult = await pool.query(
+      `SELECT id, username FROM admin_users WHERE username = $1`,
+      [username]
+    );
+
+    if (checkResult.rows.length > 0) {
+      throw new Error('Username already exists');
+    }
+
+    // Insert new user
+    const result = await pool.query(
       `INSERT INTO admin_users (username, password_hash, role, created_at, updated_at)
        VALUES ($1, $2, $3, NOW(), NOW())
-       ON CONFLICT (username) DO UPDATE
-         SET password_hash = EXCLUDED.password_hash,
-             role = EXCLUDED.role,
-             updated_at = NOW()
        RETURNING id, username, role, created_at`,
       [username, hashedPassword, role]
     );
-    console.log(`[AdminAuth] Admin user "${username}" created/updated with role "${role}"`);
+    console.log(`[AdminAuth] Admin user "${username}" created with role "${role}"`);
+    return result.rows[0];
   } catch (error) {
     console.error('[AdminAuth] Failed to create admin user:', error);
     throw error;
