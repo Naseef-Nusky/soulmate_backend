@@ -44,7 +44,7 @@ router.post('/register', async (req, res) => {
       return res.status(402).json({ error: 'Payment session or subscription ID is required before creating an account.' });
     }
 
-    const cleanedEmail = email.trim().toLowerCase();
+    let cleanedEmail = email.trim().toLowerCase();
     const stripe = getStripe();
     let subscription = null;
     let sessionEmail = null;
@@ -181,9 +181,14 @@ router.post('/register', async (req, res) => {
       sessionEmail = checkoutSession.customer_email || checkoutSession.metadata?.email;
     }
 
-    // Verify email matches
+    // Verify email matches; if not, prefer the payment email to avoid blocking signup
     if (sessionEmail && sessionEmail.toLowerCase() !== cleanedEmail) {
-      return res.status(400).json({ error: 'Payment email does not match registration email.' });
+      console.warn('[Auth] Payment email does not match registration email. Using payment email.', {
+        paymentEmail: sessionEmail?.toLowerCase(),
+        registrationEmail: cleanedEmail,
+      });
+      // Override to use the payment-confirmed email
+      cleanedEmail = sessionEmail.toLowerCase();
     }
 
     // Check if signup was already created (via webhook) by checking subscription metadata
