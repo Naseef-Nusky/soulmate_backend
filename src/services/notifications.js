@@ -9,6 +9,23 @@ export async function createNotification({ type, title, message, data = null }) 
   }
 
   try {
+    // Dedupe: avoid inserting identical notifications within a short window
+    // This prevents double "new_signup" alerts when both webhook and register flow run
+    const dedupeWindowMinutes = 10;
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM crm_notifications
+       WHERE type = $1
+         AND message = $2
+         AND created_at > NOW() - ($3::interval)
+       LIMIT 1`,
+      [type, message, `${dedupeWindowMinutes} minutes`]
+    );
+
+    if (existing.length > 0) {
+      console.log(`[Notifications] Skipping duplicate notification (type=${type}) within ${dedupeWindowMinutes} minutes`);
+      return existing[0];
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO crm_notifications (type, title, message, data, created_at)
        VALUES ($1, $2, $3, $4, NOW())

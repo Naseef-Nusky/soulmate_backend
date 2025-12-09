@@ -38,54 +38,187 @@ router.post('/register', async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
-    if (!sessionId) {
-      return res.status(402).json({ error: 'Payment session is required before creating an account.' });
+    
+    const subscriptionId = req.body.subscriptionId;
+    if (!sessionId && !subscriptionId) {
+      return res.status(402).json({ error: 'Payment session or subscription ID is required before creating an account.' });
     }
 
     const cleanedEmail = email.trim().toLowerCase();
-    let checkoutSession;
-    try {
-      checkoutSession = await retrieveCheckoutSession(sessionId);
-    } catch (error) {
-      console.error('[Auth] Unable to retrieve checkout session:', error);
-      return res.status(402).json({ error: 'Unable to verify payment session. Please try again.' });
-    }
-
-    // Verify checkout session is completed and paid
-    if (checkoutSession.payment_status !== 'paid') {
-      return res.status(402).json({ error: 'Payment has not been completed yet.' });
-    }
-
-    // Verify this is our trial subscription flow
-    if (checkoutSession.mode !== 'subscription' || checkoutSession.metadata?.type !== 'paid_trial') {
-      return res.status(400).json({ error: 'Invalid payment type.' });
-    }
-
     const stripe = getStripe();
     let subscription = null;
-    try {
-      if (checkoutSession.subscription) {
-        if (typeof checkoutSession.subscription === 'string') {
-          subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription);
-        } else {
-          subscription = checkoutSession.subscription;
+    let sessionEmail = null;
+
+    // Handle subscription ID (from custom checkout UI)
+    if (subscriptionId) {
+      try {
+        subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+          expand: ['latest_invoice.payment_intent'],
+        });
+        
+        // Get the latest invoice and payment intent
+        const invoice = subscription.latest_invoice;
+        let paymentIntent = null;
+        
+        if (invoice) {
+          if (typeof invoice === 'string') {
+            const invoiceObj = await stripe.invoices.retrieve(invoice, {
+              expand: ['payment_intent'],
+            });
+            paymentIntent = invoiceObj.payment_intent;
+          } else {
+            paymentIntent = invoice.payment_intent;
+          }
         }
+        
+        // Check payment intent status first (most reliable)
+        const paymentSucceeded = paymentIntent && (
+          paymentIntent.status === 'succeeded' || 
+          paymentIntent.status === 'processing'
+        );
+        
+        // Check if payment requires action or payment method (payment failed)
+        const paymentFailed = paymentIntent && (
+          paymentIntent.status === 'requires_payment_method' ||
+          paymentIntent.status === 'canceled'
+        );
+        
+        if (paymentFailed) {
+          console.log('[Auth] Payment failed or not completed:', {
+            subscriptionId,
+            subscriptionStatus: subscription.status,
+            paymentIntentStatus: paymentIntent.status,
+            paymentIntentId: paymentIntent.id,
+          });
+          return res.status(402).json({ 
+            error: 'Payment was not completed. Please complete the payment on the checkout page.' 
+          });
+        }
+        
+        // Verify subscription is active, trialing, or incomplete with successful payment
+        const subscriptionActive = subscription.status === 'active' || 
+                                   subscription.status === 'trialing' ||
+                                   (subscription.status === 'incomplete' && paymentSucceeded);
+        
+        if (!subscriptionActive && !paymentSucceeded) {
+          // Check if there's a paid invoice
+          const invoices = await stripe.invoices.list({
+            subscription: subscriptionId,
+            limit: 1,
+          });
+          
+          const hasPaidInvoice = invoices.data.length > 0 && invoices.data[0].status === 'paid';
+          
+          if (!hasPaidInvoice) {
+            console.log('[Auth] Payment verification failed:', {
+              subscriptionId,
+              subscriptionStatus: subscription.status,
+              paymentIntentStatus: paymentIntent?.status,
+              hasPaidInvoice: false,
+            });
+            return res.status(402).json({ 
+              error: 'Payment has not been completed yet. Please complete the payment on the checkout page.' 
+            });
+          }
+        }
+
+        // Verify this is our trial subscription flow
+        if (subscription.metadata?.type !== 'paid_trial') {
+          return res.status(400).json({ error: 'Invalid payment type.' });
+        }
+
+        // Get customer email
+        if (subscription.customer) {
+          const customer = typeof subscription.customer === 'string' 
+            ? await stripe.customers.retrieve(subscription.customer)
+            : subscription.customer;
+          sessionEmail = customer.email;
+        }
+        
+        console.log('[Auth] Payment verified successfully:', {
+          subscriptionId,
+          subscriptionStatus: subscription.status,
+          paymentIntentStatus: paymentIntent?.status,
+          email: sessionEmail,
+        });
+      } catch (error) {
+        console.error('[Auth] Unable to retrieve subscription:', error);
+        return res.status(402).json({ error: 'Unable to verify payment subscription. Please try again.' });
       }
-    } catch (error) {
-      console.error('[Auth] Error retrieving subscription:', error);
+    } 
+    // Handle checkout session ID (from Stripe Checkout)
+    else if (sessionId) {
+      let checkoutSession;
+      try {
+        checkoutSession = await retrieveCheckoutSession(sessionId);
+      } catch (error) {
+        console.error('[Auth] Unable to retrieve checkout session:', error);
+        return res.status(402).json({ error: 'Unable to verify payment session. Please try again.' });
+      }
+
+      // Verify checkout session is completed and paid
+      if (checkoutSession.payment_status !== 'paid') {
+        return res.status(402).json({ error: 'Payment has not been completed yet.' });
+      }
+
+      // Verify this is our trial subscription flow
+      if (checkoutSession.mode !== 'subscription' || checkoutSession.metadata?.type !== 'paid_trial') {
+        return res.status(400).json({ error: 'Invalid payment type.' });
+      }
+
+      try {
+        if (checkoutSession.subscription) {
+          if (typeof checkoutSession.subscription === 'string') {
+            subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription);
+          } else {
+            subscription = checkoutSession.subscription;
+          }
+        }
+      } catch (error) {
+        console.error('[Auth] Error retrieving subscription:', error);
+      }
+
+      sessionEmail = checkoutSession.customer_email || checkoutSession.metadata?.email;
     }
 
-    const sessionEmail = checkoutSession.customer_email || checkoutSession.metadata?.email;
+    // Verify email matches
     if (sessionEmail && sessionEmail.toLowerCase() !== cleanedEmail) {
       return res.status(400).json({ error: 'Payment email does not match registration email.' });
+    }
+
+    // Check if signup was already created (via webhook) by checking subscription metadata
+    let emailsAlreadySent = false;
+    if (subscription && subscription.metadata) {
+      const signupCreated = subscription.metadata.signupCreated === 'true';
+      if (signupCreated) {
+        // Signup was already created, check if emails were sent
+        // If subscription has signupCreated=true, webhook likely already sent emails
+        emailsAlreadySent = true;
+        console.log('[Auth] Signup already created via webhook - will skip duplicate emails');
+      }
     }
 
     const { signup, token, loginLink, horoscope } = await provisionSignupAndSendLogin({
       email: cleanedEmail,
       name,
       birthDate,
-      sendEmails: true,
+      sendEmails: !emailsAlreadySent, // Only send emails if they weren't already sent
     });
+    
+    // Update subscription metadata to mark signup as created (if not already set)
+    if (subscription && subscription.id && !subscription.metadata?.signupCreated) {
+      try {
+        await stripe.subscriptions.update(subscription.id, {
+          metadata: {
+            ...subscription.metadata,
+            signupCreated: 'true',
+          },
+        });
+        console.log('[Auth] Updated subscription metadata: signupCreated=true');
+      } catch (updateError) {
+        console.warn('[Auth] Failed to update subscription metadata:', updateError?.message || updateError);
+      }
+    }
     
     // Normalize quiz data structure - handle different formats
     let finalQuizData = null;

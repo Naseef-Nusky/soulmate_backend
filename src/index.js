@@ -121,9 +121,23 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
                 email: emailFromSession,
                 name: nameFromSession,
                 birthDate: birthDateFromSession,
-                sendEmails: false,
+                sendEmails: false, // Webhook should NOT send emails - user will register via /register endpoint
               });
               signupCreated = true;
+              
+              // Mark subscription as signup created to prevent duplicate emails
+              try {
+                await stripe.subscriptions.update(subscriptionId, {
+                  metadata: {
+                    ...existingMetadata,
+                    signupCreated: 'true',
+                  },
+                });
+                console.log('[Webhook] ✅ Updated subscription metadata: signupCreated=true');
+              } catch (updateError) {
+                console.warn('[Webhook] Failed to update subscription metadata:', updateError?.message || updateError);
+              }
+              
               console.log('[Webhook] Signup provisioned automatically for email:', emailFromSession);
             } catch (provisionError) {
               console.error('[Webhook] Failed to auto-provision signup:', provisionError?.message || provisionError);

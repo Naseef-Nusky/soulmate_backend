@@ -46,7 +46,14 @@ export async function provisionSignupAndSendLogin({ email, name, birthDate, send
   const createdTime = signup?.created_at ? new Date(signup.created_at).getTime() : null;
   const updatedTime = signup?.updated_at ? new Date(signup.updated_at).getTime() : null;
   const timestampsEqual = createdTime && updatedTime && Math.abs(updatedTime - createdTime) < 1500;
+  
+  // Check if signup was just created (not updated from existing)
+  // If existingSignup exists, this means the signup was already in the database before this call
   const signupCreatedNow = !existingSignup && timestampsEqual;
+  
+  // If signup already existed when we called createSignup, emails were likely already sent
+  // Only send emails if this is a brand new signup (existingSignup was null)
+  const shouldSendEmails = signupCreatedNow;
 
   const token = generateToken(signup.email);
   let loginLink = null;
@@ -93,13 +100,19 @@ export async function provisionSignupAndSendLogin({ email, name, birthDate, send
     console.log(`[Onboarding] Quiz data not found for ${cleanedEmail} - horoscope generation will happen via job queue`);
   }
 
-  if (sendEmails && signupCreatedNow && loginLink) {
+  // Only send emails if:
+  // 1. sendEmails is true
+  // 2. Signup was just created NOW (not an existing signup that was updated)
+  // 3. Login link was generated
+  // This ensures emails are only sent once when the signup is first created
+  if (sendEmails && shouldSendEmails && loginLink) {
     try {
       await sendLoginLinkEmail({
         to: signup.email,
         loginLink,
         name: signup.name,
       });
+      console.log(`[Onboarding] ✅ Login link email sent to ${cleanedEmail}`);
     } catch (emailError) {
       console.error('[Onboarding] Failed to send login link email:', emailError?.message || emailError);
     }
@@ -110,6 +123,7 @@ export async function provisionSignupAndSendLogin({ email, name, birthDate, send
         name: signup.name,
         etaHours: SKETCH_PROMISED_HOURS,
       });
+      console.log(`[Onboarding] ✅ Sketch processing email sent to ${cleanedEmail}`);
     } catch (processingError) {
       console.error('[Onboarding] Failed to send sketch processing email:', processingError?.message || processingError);
     }
@@ -119,13 +133,16 @@ export async function provisionSignupAndSendLogin({ email, name, birthDate, send
         email: signup.email,
         name: signup.name,
       });
+      console.log(`[Onboarding] ✅ Admin notification sent for ${cleanedEmail}`);
     } catch (adminError) {
       console.error('[Onboarding] Failed to send admin new-signup email:', adminError?.message || adminError);
     }
   } else if (!sendEmails) {
     console.log(`[Onboarding] Emails suppressed for ${cleanedEmail} (sendEmails=false)`);
-  } else {
-    console.log(`[Onboarding] Signup already existed for ${cleanedEmail} - skipping login & processing emails`);
+  } else if (!shouldSendEmails) {
+    console.log(`[Onboarding] Signup already existed for ${cleanedEmail} (created ${existingSignup ? 'previously' : 'recently'}) - skipping duplicate emails`);
+  } else if (!loginLink) {
+    console.log(`[Onboarding] No login link generated for ${cleanedEmail} - skipping emails`);
   }
 
   return {

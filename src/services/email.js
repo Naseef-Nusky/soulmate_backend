@@ -196,32 +196,59 @@ export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
   const escapedCtaUrl = primaryCtaUrl.replace(/"/g, '&quot;');
   const escapedImageUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;') : '';
   
+  const appUrl = process.env.APP_URL || 'https://gurulink.app';
+  
+  // Plain text version for better deliverability
+  const text = `Your Soulmate Sketch is Ready
+
+Hello,
+
+Great news — your personalized soulmate sketch has been completed.
+
+During the sketching process, our intuitive artist picked up a remarkably strong energetic connection surrounding you. This level of clarity is uncommon and often indicates that a meaningful encounter may be approaching in your life.
+
+Here's what was detected:
+- A clear and focused soulmate energy signature
+- Strong emotional alignment symbols
+- Patterns suggesting an important connection forming soon
+- Distinct soulmate markers present in your reading
+
+View your completed sketch: ${primaryCtaUrl}
+
+This type of reading doesn't happen often — the person connected to your energy may already be moving toward you.
+
+With insight and guidance,
+The GuruLink Team`;
+
   const html = `
     <!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Twin Flame Alert — GuruLink</title>
+    <title>Your Soulmate Sketch is Ready</title>
   </head>
   <body style="margin:0; padding:0; font-family:Arial, sans-serif; background-color:#f5f5f5;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
       <tr>
         <td align="center" style="padding:40px 20px;">
-          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; max-width:600px;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; max-width:600px; border:1px solid #e5e5e5;">
             <tr>
               <td style="padding:40px 30px;">
 
-                <h2 style="margin:0 0 12px 0; font-size:22px; color:#111;">Great news — your personalized soulmate sketch has been completed.</h2>
+                <h2 style="margin:0 0 12px 0; font-size:22px; color:#111; font-weight:600;">Your Soulmate Sketch is Ready</h2>
                 <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">Hello,</p>
 
                 <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
-                  During the sketching process, our intuitive artist picked up a remarkably strong energetic connection surrounding you. This level of clarity
-                  is uncommon and often indicates that a meaningful encounter may be approaching in your life.
+                  Great news — your personalized soulmate sketch has been completed.
                 </p>
 
-                <p style="margin:0 0 12px 0; font-size:16px; color:#111; font-weight:600;">Here’s what was detected:</p>
-                <ul style="margin:0 0 16px 0; padding-left:20px; color:#111;">
+                <p style="margin:0 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
+                  During the sketching process, our intuitive artist picked up a remarkably strong energetic connection surrounding you. This level of clarity is uncommon and often indicates that a meaningful encounter may be approaching in your life.
+                </p>
+
+                <p style="margin:0 0 12px 0; font-size:16px; color:#111; font-weight:600;">Here's what was detected:</p>
+                <ul style="margin:0 0 16px 0; padding-left:20px; color:#111; line-height:1.8;">
                   <li style="margin:8px 0;">A clear and focused soulmate energy signature</li>
                   <li style="margin:8px 0;">Strong emotional alignment symbols</li>
                   <li style="margin:8px 0;">Patterns suggesting an important connection forming soon</li>
@@ -230,19 +257,15 @@ export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
 
                 <blockquote style="margin:16px 0; padding:12px 16px; background:#f7f7f7; border-left:3px solid #9146ff; border-radius:4px;">
                   <p style="margin:0; font-style:italic; color:#111; line-height:1.6;">
-                    “I couldn’t believe how accurate my sketch was. A week later, I met someone whose energy felt exactly like the reading described.”
+                    "I couldn't believe how accurate my sketch was. A week later, I met someone whose energy felt exactly like the reading described."
                     — <strong>Sarah M.</strong>
                   </p>
                 </blockquote>
 
-                <p style="margin:16px 0; font-size:16px; color:#111; line-height:1.6;">
-                  <strong>⚠️ Important:</strong> When soulmate energy appears this strongly, acknowledging it helps strengthen the connection and improve clarity.
-                </p>
-
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                   <tr>
                     <td align="center" style="padding:20px 0;">
-                      <a href="${escapedCtaUrl}" target="_blank" style="display:inline-block; background-color:#6d28d9; color:#fff; padding:12px 18px; border-radius:8px; font-weight:600; font-size:16px; text-decoration:none;">
+                      <a href="${escapedCtaUrl}" target="_blank" style="display:inline-block; background-color:#6d28d9; color:#fff; padding:12px 24px; border-radius:8px; font-weight:600; font-size:16px; text-decoration:none;">
                         View Your Completed Soulmate Sketch
                       </a>
                     </td>
@@ -252,7 +275,7 @@ export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
                 ${escapedImageUrl ? `<img src="${escapedImageUrl}" alt="Soulmate portrait" style="max-width:100%; border-radius:10px; display:block; margin:20px 0;" />` : ''}
 
                 <p style="margin:20px 0 16px 0; font-size:16px; color:#111; line-height:1.6;">
-                  This type of reading doesn’t happen often — the person connected to your energy may already be moving toward you.
+                  This type of reading doesn't happen often — the person connected to your energy may already be moving toward you.
                 </p>
 
                 <p style="margin:0; font-size:16px; color:#111; line-height:1.6;">
@@ -272,9 +295,10 @@ export async function sendTwinFlameEmail({ to, imageUrl, ctaUrl }) {
   try {
     await sendEmail({
       to: normalizedEmail,
-      subject: 'Powerful Soul Match Signal Detected',
+      subject: 'Your Soulmate Sketch is Ready',
       html,
-      categories: ['twin-flame', 'soulmate'],
+      text,
+      categories: ['transactional', 'soulmate-sketch'],
     });
     if (EMAIL_LOGS) {
       console.log(`[Email] ✅ Twin Flame email sent successfully to ${normalizedEmail}`);
@@ -837,7 +861,7 @@ The GuruLink Team
       console.log(`[Email] Cancellation confirmation sent to ${to}`);
     }
 
-    // Best-effort notification to admin
+    // Best-effort notification to admin (email only; CRM notification handled elsewhere to avoid duplicates)
     try {
       await sendEmail({
         to: ADMIN_EMAIL,
@@ -856,21 +880,6 @@ The GuruLink Team
         `,
         categories: ['admin', 'cancellation'],
       });
-
-      // Create CRM notification
-      try {
-        const { createNotification } = await import('./notifications.js');
-        await createNotification({
-          type: 'subscription_cancelled',
-          title: 'Subscription Cancelled',
-          message: name
-            ? `${name} (${to}) has cancelled their subscription`
-            : `${to} has cancelled their subscription`,
-          data: { email: to, name, periodEndDate: formattedDate },
-        });
-      } catch (notifError) {
-        console.error('[Email] Failed to create CRM notification for cancellation:', notifError?.message || notifError);
-      }
     } catch (adminError) {
       if (EMAIL_LOGS) {
         console.error('[Email] Failed to send admin cancellation notification:', adminError?.message || adminError);

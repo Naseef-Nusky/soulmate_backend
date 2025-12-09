@@ -157,6 +157,25 @@ router.post('/customers/activate', requireRole(['super_admin', 'admin']), async 
       console.error('[Admin] Failed to send admin activation notification:', adminEmailError);
     }
 
+    // Create CRM notification for account activation
+    try {
+      await createNotification({
+        type: 'account_activated',
+        title: 'Account Activated',
+        message: existing.name
+          ? `Account activated for ${existing.name} (${normalizedEmail})`
+          : `Account activated for ${normalizedEmail}`,
+        data: {
+          email: normalizedEmail,
+          name: existing.name || null,
+          activatedBy: 'admin',
+        },
+      });
+      console.log('[Admin] ✅ CRM notification created for account activation');
+    } catch (notifError) {
+      console.error('[Admin] Failed to create CRM notification for activation:', notifError?.message || notifError);
+    }
+
     return res.json({ ok: true, message: 'Account activated' });
   } catch (error) {
     console.error('[Admin] Failed to activate account:', error);

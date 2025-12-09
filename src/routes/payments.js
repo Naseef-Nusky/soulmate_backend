@@ -1,5 +1,5 @@
 import express from 'express';
-import { createCheckoutSession } from '../services/stripe.js';
+import { createCheckoutSession, createSubscriptionWithPayment } from '../services/stripe.js';
 import { saveResult } from '../services/db.js';
 import { calculateAstrology } from '../services/astrology.js';
 
@@ -99,6 +99,83 @@ router.post('/create-checkout-session', async (req, res) => {
       return res.status(500).json({ error: 'Stripe is not configured on the server.' });
     }
     return res.status(500).json({ error: 'Unable to start payment. Please try again.' });
+  }
+});
+
+// Create subscription with custom payment UI
+router.post('/create-subscription', async (req, res) => {
+  try {
+    const { email, name, birthDate, quizData, currency, country } = req.body || {};
+    
+    console.log('[Payments] Custom subscription request received:', {
+      email,
+      hasName: !!name,
+      hasBirthDate: !!birthDate,
+      currency,
+      country,
+      hasQuizData: !!quizData,
+    });
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required to start payment.' });
+    }
+
+    const cleanedEmail = email.trim().toLowerCase();
+
+    // Save quiz data to database before payment (if provided)
+    if (quizData && quizData.answers && Object.keys(quizData.answers).length > 0) {
+      try {
+        console.log(`[Payments] Saving quiz data to database for ${cleanedEmail} before payment...`);
+        
+        const birthDetails = quizData.birthDetails || {
+          date: quizData.answers.birthDate || null,
+          time: quizData.answers.birthTime || null,
+          city: quizData.answers.birthCity || null,
+        };
+        
+        const astrology = calculateAstrology(birthDetails);
+        
+        await saveResult({
+          report: '',
+          imageUrl: null,
+          imageData: null,
+          astrology,
+          answers: quizData.answers,
+          email: cleanedEmail,
+          stepData: {
+            ...quizData,
+            email: cleanedEmail,
+            savedBeforePayment: true,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        
+        console.log(`[Payments] ✅ Quiz data saved to database for ${cleanedEmail} before payment`);
+      } catch (saveError) {
+        console.error(`[Payments] Failed to save quiz data before payment:`, saveError?.message || saveError);
+        // Continue with subscription creation even if quiz save fails
+      }
+    }
+
+    // Create subscription with payment intent
+    const subscription = await createSubscriptionWithPayment({
+      email: cleanedEmail,
+      name,
+      birthDate,
+    });
+
+    return res.json({
+      ok: true,
+      subscriptionId: subscription.subscriptionId,
+      clientSecret: subscription.clientSecret,
+      customerId: subscription.customerId,
+    });
+  } catch (error) {
+    console.error('[Payments] Failed to create subscription:', error);
+    if (error.message?.includes('STRIPE_SECRET_KEY') || error.message?.includes('STRIPE_PRICE_ID')) {
+      return res.status(500).json({ error: 'Stripe is not configured on the server.' });
+    }
+    return res.status(500).json({ error: error.message || 'Unable to start payment. Please try again.' });
   }
 });
 
