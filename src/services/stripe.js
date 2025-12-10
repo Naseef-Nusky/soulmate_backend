@@ -70,8 +70,8 @@ export async function createCheckoutSession({
     },
     // Add billing address collection for better mobile support
     billing_address_collection: 'auto',
-    // Allow promotion codes
-    allow_promotion_codes: true,
+    // Disable promotion codes to hide the promo box in hosted checkout
+    allow_promotion_codes: false,
   };
 
   console.log('[Stripe] Creating checkout session with options:', {
