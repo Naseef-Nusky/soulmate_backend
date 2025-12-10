@@ -161,21 +161,110 @@ router.post('/register', async (req, res) => {
         return res.status(402).json({ error: 'Payment has not been completed yet.' });
       }
 
-      // Verify this is our trial subscription flow
-      if (checkoutSession.mode !== 'subscription' || checkoutSession.metadata?.type !== 'paid_trial') {
-        return res.status(400).json({ error: 'Invalid payment type.' });
-      }
+      // Allow both legacy subscription-mode and new one-time payment-mode flows
+      const isPaidTrialMeta = checkoutSession.metadata?.type === 'paid_trial';
 
-      try {
-        if (checkoutSession.subscription) {
-          if (typeof checkoutSession.subscription === 'string') {
-            subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription);
-          } else {
-            subscription = checkoutSession.subscription;
-          }
+      if (checkoutSession.mode === 'subscription') {
+        if (!isPaidTrialMeta) {
+          return res.status(400).json({ error: 'Invalid payment type.' });
         }
-      } catch (error) {
-        console.error('[Auth] Error retrieving subscription:', error);
+
+        try {
+          if (checkoutSession.subscription) {
+            if (typeof checkoutSession.subscription === 'string') {
+              subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription);
+            } else {
+              subscription = checkoutSession.subscription;
+            }
+          }
+        } catch (error) {
+          console.error('[Auth] Error retrieving subscription:', error);
+        }
+      } else if (checkoutSession.mode === 'payment') {
+        // New flow: one-time payment; subscription was created later by the webhook.
+        if (!isPaidTrialMeta) {
+          return res.status(400).json({ error: 'Invalid payment type.' });
+        }
+
+        try {
+          let customerId = checkoutSession.customer;
+
+          // Fallback: if customer is missing (older sessions), look up by email
+          if (!customerId) {
+            const email = checkoutSession.customer_details?.email || checkoutSession.metadata?.email;
+            if (email) {
+              const customers = await stripe.customers.list({ email, limit: 1 });
+              customerId = customers.data[0]?.id;
+            }
+          }
+
+          if (!customerId) {
+            return res.status(400).json({ error: 'Unable to verify payment: missing customer.' });
+          }
+
+          // Find the most recent paid_trial subscription for this customer
+          const subs = await stripe.subscriptions.list({
+            customer: customerId,
+            status: 'all',
+            limit: 5,
+          });
+
+          subscription = subs.data.find((sub) =>
+            sub.metadata?.type === 'paid_trial' &&
+            ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired'].includes(sub.status)
+          );
+
+          // If the webhook hasn't created the subscription yet, create it here as a fallback
+          if (!subscription) {
+            const monthlyPriceId = process.env.STRIPE_MONTHLY_PRICE_ID;
+            if (!monthlyPriceId) {
+              console.error('[Auth] Missing STRIPE_MONTHLY_PRICE_ID while creating fallback subscription');
+              return res.status(402).json({ error: 'Subscription not yet created. Please wait a moment and retry.' });
+            }
+
+            // Extract email, name, and birthDate from checkout session
+            const emailFromSession = checkoutSession.customer_details?.email || checkoutSession.metadata?.email || '';
+            const nameFromSession = checkoutSession.metadata?.name || '';
+            const birthDateFromSession = checkoutSession.metadata?.birthDate || '';
+
+            console.log('[Auth] No paid_trial subscription found; creating fallback subscription now.');
+            try {
+              const createdSub = await stripe.subscriptions.create({
+                customer: customerId,
+                items: [{ price: monthlyPriceId }],
+                trial_period_days: 7,
+                metadata: {
+                  email: emailFromSession,
+                  name: nameFromSession,
+                  birthDate: birthDateFromSession,
+                  type: 'paid_trial',
+                  signupCreated: 'false',
+                },
+                payment_behavior: 'default_incomplete',
+                payment_settings: {
+                  payment_method_types: ['card', 'link'],
+                  save_default_payment_method: 'on_subscription',
+                },
+                expand: ['latest_invoice.payment_intent', 'latest_invoice'],
+              });
+
+              subscription = createdSub;
+              console.log('[Auth] ✅ Fallback subscription created:', {
+                subscriptionId: createdSub.id,
+                status: createdSub.status,
+                customer: customerId,
+              });
+            } catch (createErr) {
+              console.error('[Auth] Error creating fallback subscription:', createErr?.message || createErr);
+              return res.status(402).json({ error: 'Subscription not yet created. Please wait a moment and retry.' });
+            }
+          }
+        } catch (error) {
+          console.error('[Auth] Error finding subscription after payment-mode checkout:', error);
+          return res.status(402).json({ error: 'Unable to verify payment subscription. Please try again.' });
+        }
+      } else {
+        return res.status(400).json({ error: 'Invalid payment type.' });
       }
 
       sessionEmail = checkoutSession.customer_email || checkoutSession.metadata?.email;

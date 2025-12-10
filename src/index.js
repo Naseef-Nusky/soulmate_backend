@@ -99,6 +99,65 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
     case 'checkout.session.completed': {
       const session = event.data.object;
       console.log('[Webhook] Checkout session completed:', session.id);
+
+      // New flow: one-time upfront payment -> create monthly subscription here
+      if (session.mode === 'payment' && session.payment_status === 'paid') {
+        try {
+          const monthlyPriceId = process.env.STRIPE_MONTHLY_PRICE_ID;
+          if (!monthlyPriceId) {
+            throw new Error('STRIPE_MONTHLY_PRICE_ID is not configured');
+          }
+
+          const emailFromSession = session.customer_details?.email
+            || session.metadata?.email
+            || '';
+          const nameFromSession = session.metadata?.name || '';
+          const birthDateFromSession = session.metadata?.birthDate || '';
+          const customerId = session.customer;
+
+          // Avoid duplicate subscriptions
+          const existingSubs = await stripe.subscriptions.list({
+            customer: customerId,
+            status: 'all',
+            limit: 5,
+          });
+          const activeSub = existingSubs.data.find(sub =>
+            ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired'].includes(sub.status)
+          );
+          if (activeSub) {
+            console.log('[Webhook] Subscription already exists for customer, skipping creation');
+            break;
+          }
+
+          const subscription = await stripe.subscriptions.create({
+            customer: customerId,
+            items: [{ price: monthlyPriceId }],
+            trial_period_days: 7,
+            metadata: {
+              email: emailFromSession || '',
+              name: nameFromSession || '',
+              birthDate: birthDateFromSession || '',
+              type: 'paid_trial',
+              signupCreated: 'false',
+            },
+            payment_behavior: 'default_incomplete',
+            payment_settings: {
+              payment_method_types: ['card', 'link'],
+              save_default_payment_method: 'on_subscription',
+            },
+            expand: ['latest_invoice.payment_intent', 'latest_invoice'],
+          });
+
+          console.log('[Webhook] ✅ Created monthly subscription after one-time payment:', {
+            subscriptionId: subscription.id,
+            status: subscription.status,
+            customer: customerId,
+          });
+        } catch (err) {
+          console.error('[Webhook] Error creating subscription after one-time payment:', err?.message || err);
+        }
+        break;
+      }
       
       if (session.mode === 'subscription' && session.subscription) {
         try {
