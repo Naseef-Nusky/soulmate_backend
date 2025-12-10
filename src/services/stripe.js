@@ -47,9 +47,10 @@ export async function createCheckoutSession({
     type: 'paid_trial',
   };
 
-  const session = await stripe.checkout.sessions.create({
+  // Add additional options for better mobile compatibility
+  const sessionOptions = {
     mode: 'subscription',
-    payment_method_types: ['card','link'],
+    payment_method_types: ['card', 'link'],
     customer_email: normalizedEmail,
     success_url: successUrl,
     cancel_url: cancelUrl,
@@ -67,6 +68,34 @@ export async function createCheckoutSession({
         signupCreated: 'false',
       },
     },
+    // Add billing address collection for better mobile support
+    billing_address_collection: 'auto',
+    // Allow promotion codes
+    allow_promotion_codes: true,
+  };
+
+  console.log('[Stripe] Creating checkout session with options:', {
+    email: normalizedEmail,
+    hasSuccessUrl: !!successUrl,
+    hasCancelUrl: !!cancelUrl,
+    trialPriceId,
+    timestamp: new Date().toISOString(),
+  });
+
+  const session = await stripe.checkout.sessions.create(sessionOptions);
+
+  if (!session || !session.url) {
+    console.error('[Stripe] Checkout session created but missing URL:', {
+      sessionId: session?.id,
+      hasUrl: !!session?.url,
+    });
+    throw new Error('Failed to create checkout session URL');
+  }
+
+  console.log('[Stripe] ✅ Checkout session created successfully:', {
+    sessionId: session.id,
+    urlLength: session.url.length,
+    urlPreview: session.url.substring(0, 80) + '...',
   });
 
   return session;

@@ -14,6 +14,10 @@ router.post('/create-checkout-session', async (req, res) => {
   try {
     const { email, name, birthDate, quizData, currency, country } = req.body || {};
     
+    // Detect mobile user agent for better logging
+    const userAgent = req.headers['user-agent'] || '';
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
+    
     console.log('[Payments] Checkout session request received:', {
       email,
       hasName: !!name,
@@ -25,6 +29,8 @@ router.post('/create-checkout-session', async (req, res) => {
       hasAnswers: !!quizData?.answers,
       answerKeys: quizData?.answers ? Object.keys(quizData.answers) : [],
       answerCount: quizData?.answers ? Object.keys(quizData.answers).length : 0,
+      isMobile,
+      userAgent: userAgent.substring(0, 100), // Log first 100 chars
     });
 
     if (!email) {
@@ -75,8 +81,21 @@ router.post('/create-checkout-session', async (req, res) => {
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
     // Redirect directly to login page after payment success
     // Generation will happen automatically via webhook
-    const successUrl = `${appUrl}/login?session_id={CHECKOUT_SESSION_ID}&payment=success`;
-    const cancelUrl = `${appUrl}/quiz`;
+    // Ensure URLs use HTTPS for production (Stripe requires HTTPS)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const baseUrl = isProduction && !appUrl.startsWith('https://') 
+      ? appUrl.replace('http://', 'https://') 
+      : appUrl;
+    
+    const successUrl = `${baseUrl}/login?session_id={CHECKOUT_SESSION_ID}&payment=success`;
+    const cancelUrl = `${baseUrl}/quiz`;
+
+    console.log('[Payments] Creating Stripe checkout session:', {
+      email: cleanedEmail,
+      successUrl,
+      cancelUrl,
+      isMobile,
+    });
 
     const session = await createCheckoutSession({
       email: cleanedEmail,
@@ -86,6 +105,13 @@ router.post('/create-checkout-session', async (req, res) => {
       cancelUrl,
       currency,
       country,
+    });
+
+    console.log('[Payments] ✅ Checkout session created:', {
+      sessionId: session.id,
+      hasUrl: !!session.url,
+      urlLength: session.url?.length,
+      isMobile,
     });
 
     return res.json({
