@@ -177,6 +177,17 @@ export async function createSubscriptionWithPayment({
     throw new Error('No payment intent found for subscription');
   }
 
+  // Update PaymentIntent to ensure Apple Pay and Google Pay are properly supported
+  // This ensures the payment intent has the correct payment method types for wallet payments
+  try {
+    paymentIntent = await stripe.paymentIntents.update(paymentIntent.id, {
+      payment_method_types: ['card', 'link'],
+    });
+  } catch (updateError) {
+    console.warn('[Stripe] Could not update payment intent for wallet support:', updateError?.message || updateError);
+    // Continue even if update fails - the payment intent should still work
+  }
+
   const clientSecret = paymentIntent?.client_secret;
 
   if (!clientSecret) {
