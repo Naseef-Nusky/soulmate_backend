@@ -199,6 +199,12 @@ export async function createSubscriptionWithPayment({
     paymentIntentId: paymentIntent.id,
     paymentIntentStatus: paymentIntent.status,
     hasClientSecret: !!clientSecret,
+    amount: paymentIntent.amount,
+    currency: paymentIntent.currency,
+    paymentMethodTypes: paymentIntent.payment_method_types,
+    // Log wallet payment support
+    supportsApplePay: paymentIntent.payment_method_types?.includes('card'),
+    supportsGooglePay: paymentIntent.payment_method_types?.includes('card'),
   });
 
   return {
