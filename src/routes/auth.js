@@ -12,7 +12,7 @@ const SKETCH_PROMISED_WINDOW_HOURS = Number(process.env.SKETCH_PROMISED_HOURS ||
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, name, birthDate, sessionId, quizData } = req.body;
+    let { email, name, birthDate, sessionId, quizData } = req.body;
     
     console.log('[Auth] Registration request received:', {
       email,
@@ -35,6 +35,27 @@ router.post('/register', async (req, res) => {
       console.log('[Auth] First 10 answer keys:', answerKeys.slice(0, 10));
     }
     
+    // If email is missing but we have a checkout session, derive details from Stripe
+    if (!email && sessionId) {
+      try {
+        const checkoutSession = await retrieveCheckoutSession(sessionId);
+        email = checkoutSession.customer_details?.email 
+          || checkoutSession.metadata?.email 
+          || null;
+        // Fill in optional profile fields from metadata if they were provided
+        name = name || checkoutSession.metadata?.name || '';
+        birthDate = birthDate || checkoutSession.metadata?.birthDate || '';
+        console.log('[Auth] Derived user info from checkout session:', {
+          sessionId,
+          hasEmail: !!email,
+          hasName: !!name,
+          hasBirthDate: !!birthDate,
+        });
+      } catch (deriveError) {
+        console.warn('[Auth] Failed to derive email from checkout session:', deriveError?.message || deriveError);
+      }
+    }
+
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
