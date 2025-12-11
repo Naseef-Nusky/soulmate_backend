@@ -31,9 +31,27 @@ const server = createServer(app);
 
 const PORT = process.env.PORT || 4000;
 // Allow multiple origins for mobile app support
+const baseDomain = process.env.BASE_DOMAIN || 'gurulink.app';
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : (process.env.APP_URL ? [process.env.APP_URL] : ['*']);
+
+// Ensure all Gurulink web properties (with/without www) are permitted
+const defaultAllowedOrigins = [
+  `https://${baseDomain}`,
+  `https://www.${baseDomain}`,
+  `https://app.${baseDomain}`,
+  `https://api.${baseDomain}`,
+];
+
+// Build a Set for quick lookup and to avoid duplicates
+const allowedOriginsSet = new Set([
+  ...allowedOrigins,
+  ...defaultAllowedOrigins,
+]);
+
+// Regex to allow any subdomain of the base domain (e.g., promo.gurulink.app)
+const allowedSubdomainRegex = new RegExp(`^https?://([a-z0-9-]+\\.)*${baseDomain.replace('.', '\\.')}$`, 'i');
 
 // Add mobile app origins that Capacitor uses
 const mobileOrigins = [
@@ -53,7 +71,13 @@ app.use(cors({
     }
     
     // Check if origin is in allowed list
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    if (allowedOriginsSet.has('*') || allowedOriginsSet.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow any subdomain of the base domain (covers www/app/api, etc.)
+    if (allowedSubdomainRegex.test(origin)) {
       callback(null, true);
       return;
     }
