@@ -1,4 +1,12 @@
 import 'dotenv/config';
+
+// Silence non-error logs in production to reduce noise
+if (process.env.NODE_ENV === 'production') {
+  console.log = () => {};
+  console.debug = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+}
 // For DigitalOcean PostgreSQL: disable strict TLS certificate verification
 // This is safe because we're connecting to a trusted DigitalOcean service
 if (process.env.DATABASE_URL?.includes('ondigitalocean.com')) {
