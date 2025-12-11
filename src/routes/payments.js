@@ -97,34 +97,76 @@ router.post('/create-checkout-session', async (req, res) => {
       isMobile,
     });
 
-    const session = await createCheckoutSession({
-      email: cleanedEmail,
-      name,
-      birthDate,
-      successUrl,
-      cancelUrl,
-      currency,
-      country,
-    });
+    try {
+      const session = await createCheckoutSession({
+        email: cleanedEmail,
+        name,
+        birthDate,
+        successUrl,
+        cancelUrl,
+        currency,
+        country,
+      });
 
-    console.log('[Payments] ✅ Checkout session created:', {
-      sessionId: session.id,
-      hasUrl: !!session.url,
-      urlLength: session.url?.length,
-      isMobile,
-    });
+      console.log('[Payments] ✅ Checkout session created:', {
+        sessionId: session.id,
+        hasUrl: !!session.url,
+        urlLength: session.url?.length,
+        isMobile,
+        timestamp: new Date().toISOString(),
+      });
 
-    return res.json({
-      ok: true,
-      sessionId: session.id,
-      url: session.url, // Redirect user to this URL
-    });
-  } catch (error) {
-    console.error('[Payments] Failed to create checkout session:', error);
-    if (error.message?.includes('STRIPE_SECRET_KEY') || error.message?.includes('STRIPE_PRICE_ID')) {
-      return res.status(500).json({ error: 'Stripe is not configured on the server.' });
+      return res.json({
+        ok: true,
+        sessionId: session.id,
+        url: session.url, // Redirect user to this URL
+      });
+    } catch (checkoutError) {
+      console.error('[Payments] ❌ Checkout session creation failed:', {
+        error: checkoutError.message,
+        errorType: checkoutError.type,
+        errorCode: checkoutError.code,
+        email: cleanedEmail,
+        hasQuizData: !!quizData,
+        timestamp: new Date().toISOString(),
+      });
+      throw checkoutError; // Re-throw to be caught by outer catch
     }
-    return res.status(500).json({ error: 'Unable to start payment. Please try again.' });
+  } catch (error) {
+    console.error('[Payments] ❌ Failed to create checkout session:', {
+      errorMessage: error.message,
+      errorType: error.type,
+      errorCode: error.code,
+      errorStack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Provide specific error messages
+    if (error.message?.includes('STRIPE_SECRET_KEY') || error.message?.includes('STRIPE_TRIAL_ONE_TIME_PRICE_ID')) {
+      return res.status(500).json({ 
+        error: 'Stripe is not configured on the server. Please contact support.',
+        code: 'STRIPE_NOT_CONFIGURED'
+      });
+    }
+
+    if (error.message?.includes('Invalid price')) {
+      return res.status(500).json({ 
+        error: 'Payment configuration error. Please contact support.',
+        code: 'INVALID_PRICE'
+      });
+    }
+
+    if (error.message?.includes('timeout') || error.message?.includes('network')) {
+      return res.status(503).json({ 
+        error: 'Payment service temporarily unavailable. Please try again in a moment.',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    return res.status(500).json({ 
+      error: error.message || 'Unable to start payment. Please try again.',
+      code: 'CHECKOUT_ERROR'
+    });
   }
 });
 
@@ -133,6 +175,59 @@ router.post('/create-intent', async (req, res) => {
   return res.status(400).json({ 
     error: 'This endpoint is deprecated. Please use /create-checkout-session instead.' 
   });
+});
+
+// Health check endpoint for checkout configuration
+router.get('/health', async (req, res) => {
+  try {
+    const { getStripe } = await import('../services/stripe.js');
+    const stripe = getStripe();
+    
+    const checks = {
+      stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
+      oneTimePriceId: !!process.env.STRIPE_TRIAL_ONE_TIME_PRICE_ID,
+      monthlyPriceId: !!process.env.STRIPE_MONTHLY_PRICE_ID,
+      appUrl: !!process.env.APP_URL,
+      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+    };
+
+    // Try to verify price IDs exist
+    if (checks.oneTimePriceId) {
+      try {
+        const price = await stripe.prices.retrieve(process.env.STRIPE_TRIAL_ONE_TIME_PRICE_ID);
+        checks.oneTimePriceValid = price.type === 'one_time';
+        checks.oneTimePriceActive = price.active;
+      } catch (err) {
+        checks.oneTimePriceValid = false;
+        checks.oneTimePriceError = err.message;
+      }
+    }
+
+    if (checks.monthlyPriceId) {
+      try {
+        const price = await stripe.prices.retrieve(process.env.STRIPE_MONTHLY_PRICE_ID);
+        checks.monthlyPriceValid = price.type === 'recurring';
+        checks.monthlyPriceActive = price.active;
+      } catch (err) {
+        checks.monthlyPriceValid = false;
+        checks.monthlyPriceError = err.message;
+      }
+    }
+
+    const allValid = Object.values(checks).every(v => v !== false && v !== undefined);
+
+    res.status(allValid ? 200 : 500).json({
+      ok: allValid,
+      checks,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 export default router;

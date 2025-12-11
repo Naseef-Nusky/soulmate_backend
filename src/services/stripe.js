@@ -19,11 +19,6 @@ export function getStripe() {
   return ensureStripe();
 }
 
-/**
- * Create a Stripe Checkout Session for the paid trial flow.
- * Phase 1: charge £1 immediately using STRIPE_TRIAL_PRICE_ID (recurring 7-day price)
- * Phase 2: webhook swaps to STRIPE_MONTHLY_PRICE_ID before the second billing cycle.
- */
 export async function createCheckoutSession({
   email,
   name,
@@ -76,23 +71,79 @@ export async function createCheckoutSession({
     timestamp: new Date().toISOString(),
   });
 
-  const session = await stripe.checkout.sessions.create(sessionOptions);
+  try {
+    const session = await stripe.checkout.sessions.create(sessionOptions);
 
-  if (!session || !session.url) {
-    console.error('[Stripe] Checkout session created but missing URL:', {
-      sessionId: session?.id,
-      hasUrl: !!session?.url,
+    if (!session) {
+      console.error('[Stripe] ❌ Checkout session creation returned null/undefined');
+      throw new Error('Stripe returned null session. Please check your Stripe configuration.');
+    }
+
+    if (!session.id) {
+      console.error('[Stripe] ❌ Checkout session missing ID:', session);
+      throw new Error('Checkout session missing ID. Please contact support.');
+    }
+
+    if (!session.url) {
+      console.error('[Stripe] ❌ Checkout session created but missing URL:', {
+        sessionId: session.id,
+        sessionMode: session.mode,
+        sessionStatus: session.status,
+        hasUrl: !!session.url,
+        sessionKeys: Object.keys(session),
+      });
+      throw new Error('Failed to create checkout session URL. Please try again.');
+    }
+
+    // Validate URL format
+    if (!session.url.startsWith('https://checkout.stripe.com/')) {
+      console.error('[Stripe] ❌ Invalid checkout URL format:', {
+        sessionId: session.id,
+        url: session.url.substring(0, 100),
+      });
+      throw new Error('Invalid checkout URL format. Please contact support.');
+    }
+
+    console.log('[Stripe] ✅ Checkout session created successfully:', {
+      sessionId: session.id,
+      urlLength: session.url.length,
+      urlPreview: session.url.substring(0, 80) + '...',
+      mode: session.mode,
+      customer: session.customer || 'will be created',
+      paymentStatus: session.payment_status,
     });
-    throw new Error('Failed to create checkout session URL');
+
+    return session;
+  } catch (error) {
+    // Enhanced error logging
+    console.error('[Stripe] ❌ Failed to create checkout session:', {
+      errorMessage: error.message,
+      errorType: error.type,
+      errorCode: error.code,
+      errorStatus: error.statusCode,
+      email: normalizedEmail,
+      oneTimePriceId,
+      hasSuccessUrl: !!successUrl,
+      hasCancelUrl: !!cancelUrl,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Provide more specific error messages
+    if (error.type === 'StripeInvalidRequestError') {
+      if (error.message?.includes('price')) {
+        throw new Error(`Invalid price configuration: ${error.message}. Please check STRIPE_TRIAL_ONE_TIME_PRICE_ID.`);
+      }
+      if (error.message?.includes('customer')) {
+        throw new Error(`Customer creation failed: ${error.message}`);
+      }
+    }
+
+    if (error.type === 'StripeAPIError') {
+      throw new Error(`Stripe API error: ${error.message}. Please try again in a moment.`);
+    }
+
+    throw error;
   }
-
-  console.log('[Stripe] ✅ Checkout session created successfully:', {
-    sessionId: session.id,
-    urlLength: session.url.length,
-    urlPreview: session.url.substring(0, 80) + '...',
-  });
-
-  return session;
 }
 
 /**

@@ -105,6 +105,7 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
         try {
           const monthlyPriceId = process.env.STRIPE_MONTHLY_PRICE_ID;
           if (!monthlyPriceId) {
+            console.error('[Webhook] ❌ STRIPE_MONTHLY_PRICE_ID is not configured');
             throw new Error('STRIPE_MONTHLY_PRICE_ID is not configured');
           }
 
@@ -115,30 +116,80 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
           const birthDateFromSession = session.metadata?.birthDate || '';
           const customerId = session.customer;
 
+          console.log('[Webhook] Processing payment-mode checkout:', {
+            sessionId: session.id,
+            customerId,
+            email: emailFromSession,
+            hasName: !!nameFromSession,
+            paymentStatus: session.payment_status,
+            timestamp: new Date().toISOString(),
+          });
+
+          if (!customerId) {
+            console.error('[Webhook] ❌ Missing customer ID in checkout session:', {
+              sessionId: session.id,
+              sessionKeys: Object.keys(session),
+              customerDetails: session.customer_details,
+            });
+            throw new Error('Missing customer ID in checkout session');
+          }
+
+          // Verify customer exists
+          let customer;
+          try {
+            customer = await stripe.customers.retrieve(customerId);
+            console.log('[Webhook] ✅ Customer verified:', {
+              customerId: customer.id,
+              email: customer.email,
+            });
+          } catch (customerError) {
+            console.error('[Webhook] ❌ Failed to retrieve customer:', {
+              customerId,
+              error: customerError.message,
+            });
+            throw new Error(`Customer not found: ${customerError.message}`);
+          }
+
           // Avoid duplicate subscriptions
           const existingSubs = await stripe.subscriptions.list({
             customer: customerId,
             status: 'all',
-            limit: 5,
+            limit: 10,
           });
+          
+          console.log('[Webhook] Checking for existing subscriptions:', {
+            customerId,
+            existingCount: existingSubs.data.length,
+            existingStatuses: existingSubs.data.map(s => s.status),
+          });
+
           const activeSub = existingSubs.data.find(sub =>
             ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired'].includes(sub.status)
           );
+          
           if (activeSub) {
-            console.log('[Webhook] Subscription already exists for customer, skipping creation');
+            console.log('[Webhook] ⚠️ Subscription already exists for customer, skipping creation:', {
+              subscriptionId: activeSub.id,
+              status: activeSub.status,
+              customerId,
+            });
             break;
           }
 
+          // Create subscription
+          console.log('[Webhook] Creating monthly subscription...');
           const subscription = await stripe.subscriptions.create({
             customer: customerId,
             items: [{ price: monthlyPriceId }],
             trial_period_days: 7,
             metadata: {
-              email: emailFromSession || '',
+              email: emailFromSession || customer.email || '',
               name: nameFromSession || '',
               birthDate: birthDateFromSession || '',
               type: 'paid_trial',
               signupCreated: 'false',
+              createdFrom: 'webhook_payment_mode',
+              originalSessionId: session.id,
             },
             payment_behavior: 'default_incomplete',
             payment_settings: {
@@ -152,9 +203,22 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
             subscriptionId: subscription.id,
             status: subscription.status,
             customer: customerId,
+            email: emailFromSession || customer.email,
+            trialEnd: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+            timestamp: new Date().toISOString(),
           });
         } catch (err) {
-          console.error('[Webhook] Error creating subscription after one-time payment:', err?.message || err);
+          console.error('[Webhook] ❌ Error creating subscription after one-time payment:', {
+            errorMessage: err.message,
+            errorType: err.type,
+            errorCode: err.code,
+            errorStack: err.stack,
+            sessionId: session.id,
+            customerId: session.customer,
+            timestamp: new Date().toISOString(),
+          });
+          // Don't break - let the webhook acknowledge receipt
+          // The auth route will create subscription as fallback
         }
         break;
       }
